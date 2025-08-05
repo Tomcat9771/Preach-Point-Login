@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Preach Point</title>
+  <link rel="stylesheet" href="style.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="script.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="app-title">
+    <img id="logo" src="/logo.png" alt="Preach Point Logo" />
+  </header>
+
+    <form id="preachpoint-form">
+      <label id="lang-label" for="lang">Language</label>
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="af">Afrikaans</option>
+      </select>
+
+      <label id="book-label" for="book">Book</label>
+      <select id="book"></select>
+
+      <label id="chapter-label" for="chapter">Start Chapter</label>
+      <select id="chapter"></select>
+
+      <label id="verse-label" for="verse">Start Verse</label>
+      <select id="verse"></select>
+
+      <label id="end-chapter-label" for="end-chapter">End Chapter</label>
+      <select id="end-chapter"></select>
+
+      <label id="end-verse-label" for="end-verse">End Verse</label>
+      <select id="end-verse"></select>
+
+      <label id="tone-label" for="tone">Tone</label>
+      <select id="tone"></select>
+
+      <label id="level-label" for="level">Explanation Level</label>
+      <select id="level">
+        <option value="short">Short</option>
+        <option value="sermon">Sermon-Style</option>
+        <option value="full">Full Commentary</option>
+      </select>
+
+      <button id="generate-btn" type="button">Generate Commentary</button>
+    </form>
+
+    <div id="output">
+  <h2 id="verses-heading">Bible Text</h2>
+  <div id="verses"></div>
+
+  <h2 id="commentary-heading">Commentary</h2>
+  <div id="commentary"></div>
+
+  <!-- NEW: Prayer block -->
+  <h2 id="prayer-heading">Prayer</h2>
+  <div id="prayer"></div>
+</div>
+
+    <div class="actions">
+  <button id="copy-btn" type="button">Copy to Clipboard</button>
+  <button id="reset-btn" type="button">Reset Fields</button>
+  <button id="download-pdf" type="button">Download as PDF</button>
+</div>
+  </div>
+</body>
+</html>

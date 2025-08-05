@@ -1,0 +1,139 @@
+/* Shields Consulting branding for Preach Point */
+
+body {
+  background-color: #6B1A7B;
+  color: white;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+h1, h2 {
+  color: #FFD700;
+  text-align: center;
+  margin-bottom: 1rem;
+font-size: 2.5rem;
+}
+/* Header container: shorter vertical space */
+.app-title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0;    /* adjust top/bottom padding to taste */
+  max-height: 180px;    /* limits the header’s height */
+  overflow: hidden;     /* prevents the logo from pushing it taller */
+}
+/* Constrain your logo to fit within the header */
+#logo {
+  /* max height = header’s max-height minus a little padding */
+   max-height: 300px;     /* tweak this value as needed */
+   height: auto;          /* keep aspect ratio */
+   width: auto;           /* allow it to scale */
+   display: block;        /* remove any inline-img whitespace */
+   margin: 0 auto;        /* center */
+}
+label {
+  display: block;
+  margin-top: 1rem;
+  font-weight: bold;
+  color: white;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  background-color: #F5F5F5;
+  color: #333;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+button {
+  display: inline-block;
+  background-color: #FFD700;
+  color: #6B1A7B;
+  border: none;
+  border-radius: 25px;
+  padding: 0.75rem 2rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 1rem;
+}
+button:hover {
+  background-color: #e6c200;
+}
+
+#output h2 {
+  margin-top: 1.5rem;
+  color: #FFD700;
+}
+
+#output div {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 1rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  margin-top: 1rem;
+  color: white;
+}
+.actions {
+   display: flex;
+  /* no need for space-between once buttons flex equally */
+   gap: 1rem;
+   margin-top: 1.5rem;
+ }
+
+.actions button {
+  margin: 0;                   /* reset any button margins */
+  flex: 1;                     /* make each button share the same width */
+  text-align: center;          /* center the label text */
+}
+/* ─── Loading Spinner ──────────────────────────────────────────── */
+.spinner--dual-ring {
+    display: block;
+  width: 16px;           /* now half of 32px */
+  height: 16px;          /* now half of 32px */
+  margin: 0.5rem auto;   /* half of previous 1rem */
+ }
+.spinner--dual-ring:after {
+    content: "";
+  display: block;
+  width: 12px;           /* half of 24px */
+  height: 12px;          /* half of 24px */
+  margin: 2px;           /* half of 4px */
+  border-radius: 50%;
+  border: 2px solid #f3f3f3;                  /* reduced a bit for visibility */
+  border-color: #f3f3f3 #f3f3f3 #007bff #007bff;
+  animation: dual-ring 1.2s linear infinite;
+ }
+
+@keyframes dual-ring {
+  to { transform: rotate(360deg); }
+}
+@media (max-width: 600px) {
+  body {
+    padding: 1rem;
+  }
+  .container {
+    padding: 1rem;
+    margin: 1rem;
+  }
+  input, select, button {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+
+}
