@@ -166,7 +166,6 @@ function populateLevels() {
 function updateButtonsAndHeadings(loc) {
   // buttonLabels and headingLabels are your globals defined earlier
   $('generate-btn').textContent      = buttonLabels[loc].generate;
-  $('copy-btn').textContent          = buttonLabels[loc].copy;
   $('reset-btn').textContent         = buttonLabels[loc].reset;
   $('download-pdf').textContent      = buttonLabels[loc].pdf;
   $('verses-heading').textContent     = headingLabels[loc].verses;
@@ -215,7 +214,6 @@ window.addEventListener('DOMContentLoaded', () => {
   $('book').addEventListener('change', populateChapters);
   $('chapter').addEventListener('change', populateVerses);
   $('generate-btn').addEventListener('click', onGenerate);
-  $('copy-btn').addEventListener('click', onCopy);
   $('reset-btn').addEventListener('click', onReset);
   $('download-pdf').addEventListener('click', onDownloadPDF);
 });
@@ -399,20 +397,6 @@ $('verses').textContent = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}\n\n${verse
 }
 
   
-// ─── Copy to clipboard helper ────────────────────────────────────
-function onCopy() {
-  const loc = $('lang').value;
-  const text = 
-    `${labels[loc].tone}: ${$('tone').value}\n` +
-    `${labels[loc].level}: ${$('level').value}\n\n` +
-    `${headingLabels[loc].verses}:\n${$('verses').textContent}\n\n` +
-    `${headingLabels[loc].commentary}:\n${$('commentary').textContent}\n\n` +
-    `${headingLabels[loc].prayer}:\n${$('prayer').textContent}`;
-   navigator.clipboard.writeText(text)
-     .then(() => alert('Copied!'))
-     .catch(e => alert('Copy failed:'+e));
- }
-
 // ─── Download all as PDF ───────────────────────────────
 async function onDownloadPDF() {
   // 1️⃣ Grab jsPDF
