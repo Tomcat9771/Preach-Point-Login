@@ -144,6 +144,32 @@ async function populateVerses() {
     sel1.append(new Option(num, num));
   });
 }
+// ─── Populate end verses after end-chapter is chosen ──────────────
+async function populateEndVerses() {
+  const loc      = $('lang').value;
+  const bookName = $('book').value;
+  const endChap  = $('end-chapter').value;
+  const sel1     = $('end-verse');
+
+  sel1.innerHTML = '';
+  sel1.append(new Option(labels[loc].endVerse,''));
+
+  if (!bookName || !endChap) return;
+
+  let js;
+  try {
+    js = await safeFetchJson(
+      `/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${endChap}`
+    );
+  } catch (err) {
+    alert(`Could not load verses: ${err.message}`);
+    return;
+  }
+
+  js.verses.forEach(num => {
+    sel1.append(new Option(num, num));
+  });
+}
 
 // ─── Populate tone & level selects ──────────────────────────────
 function populateTone() {
@@ -216,6 +242,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('generate-btn').addEventListener('click', onGenerate);
   $('reset-btn').addEventListener('click', onReset);
   $('download-pdf').addEventListener('click', onDownloadPDF);
+  $('end-chapter').addEventListener('change', populateEndVerses);
 });
 
 // ─── Generate & display commentary ───────────────────────────────
