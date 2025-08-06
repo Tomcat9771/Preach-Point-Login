@@ -359,6 +359,39 @@ if (lang === 'af') {
   $('commentary').innerHTML = '<div class="spinner spinner--dual-ring"></div>';
   $('prayer').innerHTML     = '<div class="spinner spinner--dual-ring"></div>';
 
+// 🧮 Optional: enforce maximum of 30 verses
+if (lang === 'af' || lang === 'en') {
+  const sChapter = parseInt(sCh);
+  const eChapter = parseInt(eCh);
+  const sVerse   = parseInt(sV);
+  const eVerse   = parseInt(eV);
+
+  // Single chapter case
+  let totalVerses = 0;
+  if (sChapter === eChapter) {
+    totalVerses = eVerse - sVerse + 1;
+  } else {
+    // Fetch verses in start and end chapters
+    const startRes = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${sChapter}`);
+    const endRes   = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${eChapter}`);
+    const startTotal = startRes.verses.length;
+    const endTotal   = endRes.verses.length;
+
+    totalVerses = (startTotal - sVerse + 1) + eVerse;
+    if (eChapter - sChapter > 1) {
+      totalVerses += 999;  // fallback estimation for middle chapters
+    }
+  }
+
+  const maxLimit = 30;
+  if (totalVerses > maxLimit) {
+    return alert(
+      `Please limit your selection to ${maxLimit} verses.\n` +
+      `You selected ${totalVerses}.`
+    );
+  }
+}
+
   // ② Fetch & render verses
   try {
     const url     = lang === 'af' ? '/api/translate' : '/api/verses';
