@@ -34,7 +34,7 @@ font-size: 2.5rem;
 /* Constrain your logo to fit within the header */
 #logo {
   /* max height = header’s max-height minus a little padding */
-   max-height: 300px;     /* tweak this value as needed */
+   max-height: 250px;     /* tweak this value as needed */
    height: auto;          /* keep aspect ratio */
    width: auto;           /* allow it to scale */
    display: block;        /* remove any inline-img whitespace */

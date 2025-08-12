@@ -433,57 +433,6 @@ const passageRef = `${afRefBook} ${startChapter}:${startVerse}-${endChapter || s
   }
 });
 
-// 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion', async (req, res) => {
-  try {
-    const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
-    if (!book || !startChapter || !startVerse) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-    const sCh = startChapter;
-    const eCh = endChapter || startChapter;
-    const sV  = startVerse;
-    const eV  = endVerse || startVerse;
-
-    // Use the same passage extraction you use for commentary/prayer
-    const scripture = (lang === 'af')
-      ? extractVersesAF(book, sCh, sV, eCh, eV)
-      : extractVerses(book, sCh, sV, eCh, eV);
-
-    const langLabel = lang === 'af' ? 'Afrikaans' : 'English';
-
-    const prompt = `Write a short pastoral devotion in ${langLabel} based on the passage below.
-- 3–4 concise paragraphs, warm and practical.
-- Faithful to the text; no speculative or controversial claims.
-- No headings or verse references in the body.
-- End with one crisp line of encouragement.
-
-Passage:
-${scripture}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'You write concise, pastoral devotions that are biblically faithful and application-focused. Return only the devotion text without headings or verse references.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.4,
-      max_tokens: 700
-    });
-
-    let devotion = (completion.choices?.[0]?.message?.content || '').trim();
-    if (lang === 'af' && devotion) {
-      devotion = await proofreadText(devotion, 'af');
-    }
-    res.json({ devotion });
-  } catch (err) {
-    console.error('Error in /api/devotion:', err);
-    res.status(500).json({ error: err.message || 'Server error' });
-  }
-});
-
-
-
 
 // 🔟 Endpoint: AI-only prayer
 app.post('/api/prayer', async (req, res) => {
@@ -529,55 +478,6 @@ app.post('/api/prayer', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion', async (req, res) => {
-  try {
-    const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
-    if (!book || !startChapter || !startVerse) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-    const sCh = startChapter;
-    const eCh = endChapter || startChapter;
-    const sV  = startVerse;
-    const eV  = endVerse || startVerse;
-
-    const scripture = lang === 'af'
-      ? extractVersesAF(book, sCh, sV, eCh, eV)
-      : extractVerses(book, sCh, sV, eCh, eV);
-    const langLabel = lang === 'af' ? 'Afrikaans' : 'English';
-
-    const prompt = `Write a pastoral devotion in ${langLabel} based on the passage below. 
-- 3–5 short paragraphs.
-- Warm, concrete, and practical.
-- No verse references or headings in the body.
-- Include one clear application and one brief closing line of encouragement.
-Return only the devotion text.
-
-Passage:
-${scripture}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'You are Preach Point AI. You write concise, pastoral devotions that are Biblically faithful and application-focused. Do not include headings, verse references, or introductions. Return only the devotion text.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.5,
-      max_tokens: 1000
-    });
-
-    let devotion = (completion.choices?.[0]?.message?.content || '').trim();
-    if (lang === 'af') {
-      devotion = await proofreadText(devotion, 'af');
-    }
-    res.json({ devotion });
-  } catch (err) {
-    console.error('Error in /api/devotion:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ─── Global error handler ───────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);

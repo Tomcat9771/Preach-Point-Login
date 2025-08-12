@@ -50,8 +50,8 @@ const buttonLabels = {
   }
  };
 const headingLabels = {
-  en: { verses: "Bible Text", commentary: "Commentary", devotion: "Devotion",   prayer: "Prayer" },
-  af: { verses: "Bybelteks",  commentary: "Kommentaar", devotion: "Toewyding", prayer: "Gebed" }
+  en: { verses: "Bible Text", commentary: "Commentary", prayer: "Prayer" },
+  af: { verses: "Bybelteks", commentary: "Kommentaar", prayer: "Gebed" }
 };
 
 // shorthand for document.getElementById
@@ -190,13 +190,12 @@ function populateLevels() {
  * Syncs button text and section headings to the selected language.
  */
 function updateButtonsAndHeadings(loc) {
+  // buttonLabels and headingLabels are your globals defined earlier
   $('generate-btn').textContent      = buttonLabels[loc].generate;
   $('reset-btn').textContent         = buttonLabels[loc].reset;
   $('download-pdf').textContent      = buttonLabels[loc].pdf;
   $('verses-heading').textContent     = headingLabels[loc].verses;
   $('commentary-heading').textContent = headingLabels[loc].commentary;
-  const devHead = $('devotion-heading');                 // <— add
-  if (devHead) devHead.textContent = headingLabels[loc].devotion; // <— add
   $('prayer-heading').textContent = headingLabels[loc].prayer;
 }
 
@@ -222,7 +221,6 @@ function updateUI() {
 }
 // ─── Reset all fields ───────────────────────────────
 function onReset() {
-  $('lang').value = 'en';
   $('book').value = '';
   $('chapter').value = '';
   $('verse').value = '';
@@ -233,7 +231,6 @@ function onReset() {
   $('lang').value = 'af';
   $('verses').textContent = '';
   $('commentary').textContent = '';
-  $('devotionOutput').textContent = '';
   $('prayer').textContent = '';
 }
 // ─── Wire up event listeners ─────────────────────────────────────
@@ -360,10 +357,9 @@ if (lang === 'af') {
   // ① Show spinners
   $('verses').innerHTML     = '<div class="spinner spinner--dual-ring"></div>';
   $('commentary').innerHTML = '<div class="spinner spinner--dual-ring"></div>';
-  $('devotionOutput').innerHTML = '<div class="spinner spinner--dual-ring"></div>';
   $('prayer').innerHTML     = '<div class="spinner spinner--dual-ring"></div>';
 
-// 🧮 Optional: enforce maximum of 50 verses
+// 🧮 Optional: enforce maximum of 30 verses
 if (lang === 'af' || lang === 'en') {
   const sChapter = parseInt(sCh);
   const eChapter = parseInt(eCh);
@@ -387,7 +383,7 @@ if (lang === 'af' || lang === 'en') {
     }
   }
 
-  const maxLimit = 50;
+  const maxLimit = 30;
   if (totalVerses > maxLimit) {
     return alert(
       `Please limit your selection to ${maxLimit} verses.\n` +
@@ -396,94 +392,69 @@ if (lang === 'af' || lang === 'en') {
   }
 }
 
-  // ② Fetch & render verses
-  try {
-    const url     = lang === 'af' ? '/api/translate' : '/api/verses';
-    const payload = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV };
-    const res     = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const js = await res.json();
-    if (!res.ok) throw new Error(js.error || 'Fetch error');
+ // ② Fetch & render verses ONCE (get full verse text)
+let verseText = '';
+try {
+  const url     = lang === 'af' ? '/api/translate' : '/api/verses';
+  const payload = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, lang };
+  const res     = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const js = await res.json();
+  if (!res.ok) throw new Error(js.error || 'Fetch error');
 
-    console.log("Translate response:", js); // ✅ debug log
+  // Choose the correct field returned by the API
+  verseText = lang === 'af' ? (js.translation || js.scripture || '') : (js.text || '');
+  if (!verseText) throw new Error('No verse text returned');
 
-let verseBlock;
-if (lang === 'af') {
-  verseBlock = js.translation || js.scripture || '[Geen teks gevind nie]';
-} else {
-  verseBlock = js.text || '[No text found]';
+  // Show reference + text in the UI
+  const ref = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}`;
+  $('verses').textContent = `${ref}\n\n${verseText}`;
+} catch (e) {
+  $('verses').textContent = `Error: ${e.message}`;
+  return; // stop if verse text fails
 }
 
-$('verses').textContent = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}\n\n${verseBlock}`;
-  } catch (e) {
-    $('verses').textContent = `Error: ${e.message}`;
-    return;
-  }
+// ③ Build a shared payload and call 3 endpoints in parallel
+const payloadCommon = { verseText, lang, tone, level: lvl };
 
-  // ③ Fetch & render commentary
-  try {
-    const payload2 = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, tone, level: lvl, lang };
-    const res2 = await fetch('/api/commentary', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload2)
-    });
-    const js2 = await res2.json();
-    if (!res2.ok) throw new Error(js2.error || 'Commentary error');
+const [resCom, resDev, resPray] = await Promise.all([
+  fetch('/api/commentary', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payloadCommon) }),
+  fetch('/api/devotion',   { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ verseText, lang }) }),
+  fetch('/api/prayer',     { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ verseText, lang }) })
+]);
 
-    let commentaryText = js2.commentary;
-    if (lang === 'af') {
-      commentaryText = commentaryText.replace(/^Conclusie\b/, 'Gevolgtrekking');
-    }
-    $('commentary').textContent = commentaryText;
-  } catch (e) {
-    $('commentary').textContent = `Error: ${e.message}`;
-  }
-
-// NEW: ④ Fetch & render devotion
+// ④ Commentary
 try {
-  const resD = await fetch('/api/devotion', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      book: bookName,
-      startChapter: sCh,
-      startVerse: sV,
-      endChapter: eCh,
-      endVerse: eV,
-      lang
-    })
-  });
-  const jsD = await resD.json();
-  if (!resD.ok) throw new Error(jsD.error || 'Devotion error');
-  $('devotionOutput').textContent = jsD.devotion;
+  const js2 = await resCom.json();
+  if (!resCom.ok) throw new Error(js2.error || 'Commentary error');
+  let commentaryText = js2.commentary || '';
+  if (lang === 'af') commentaryText = commentaryText.replace(/^Conclusie\b/, 'Gevolgtrekking');
+  $('commentary').textContent = commentaryText;
+} catch (e) {
+  $('commentary').textContent = `Error: ${e.message}`;
+}
+
+// ⑤ Devotion
+try {
+  const jsDev = await resDev.json();
+  if (!resDev.ok) throw new Error(jsDev.error || 'Devotion error');
+  $('devotionOutput').textContent = jsDev.devotion || '';
 } catch (e) {
   $('devotionOutput').textContent = `Error: ${e.message}`;
 }
 
-
-
-  // ④ Fetch & render prayer
-  try {
-    const res3 = await fetch('/api/prayer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, lang })
-    });
-    const js3 = await res3.json();
-    if (!res3.ok) throw new Error(js3.error || 'Prayer error');
-
-    $('prayer').textContent = js3.prayer;
-  } catch (e) {
-    $('prayer').textContent = `Error: ${e.message}`;
-  
-}
+// ⑥ Prayer
+try {
+  const js3 = await resPray.json();
+  if (!resPray.ok) throw new Error(js3.error || 'Prayer error');
+  $('prayer').textContent = js3.prayer || '';
+} catch (e) {
+  $('prayer').textContent = `Error: ${e.message}`;
 }
 
-  
 // ─── Download all as PDF ───────────────────────────────
 async function onDownloadPDF() {
   // 1️⃣ Grab jsPDF
