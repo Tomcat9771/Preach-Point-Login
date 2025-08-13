@@ -317,6 +317,38 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
   try {
+    // ✅ Check that all PayFast env vars are set
+    const requiredEnvVars = [
+      'PAYFAST_MODE',
+      'PAYFAST_MERCHANT_ID',
+      'PAYFAST_MERCHANT_KEY',
+      'PAYFAST_RETURN_URL',
+      'PAYFAST_CANCEL_URL',
+      'PAYFAST_NOTIFY_URL',
+      'SUBSCRIPTION_AMOUNT',
+      'SUBSCRIPTION_ITEM',
+      'PAYFAST_PASSPHRASE'
+    ];
+
+    console.log('🔍 Checking PayFast environment variables:');
+    let missingVars = [];
+    for (const key of requiredEnvVars) {
+      if (!process.env[key]) {
+        console.warn(`⚠️ MISSING: ${key}`);
+        missingVars.push(key);
+      } else {
+        console.log(`✅ ${key} = ${process.env[key]}`);
+      }
+    }
+
+    if (missingVars.length > 0) {
+      console.error('❌ Cannot proceed — Missing required PayFast environment variables:', missingVars);
+      return res.status(500).json({
+        error: `Missing required PayFast environment variables: ${missingVars.join(', ')}`
+      });
+    }
+
+    // Determine target PayFast URL
     const isLive = process.env.PAYFAST_MODE === 'live';
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
@@ -352,6 +384,11 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     const paramStr = buildPfParamString(fields, process.env.PAYFAST_PASSPHRASE);
     const signature = md5Hex(paramStr);
 
+    // 🔍 Debug logging
+    console.log('PayFast target:', target);
+    console.log('PayFast fields:', fields);
+    console.log('PayFast signature:', signature);
+
     // Save pending record
     await subRef.set({
       uid: req.user.uid,
@@ -377,6 +414,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Could not start subscription' });
   }
 });
+
 //------------------------------------------------------------------------------
 async function validateWithPayFast(paramStrNoPassphrase) {
   const isLive = process.env.PAYFAST_MODE === 'live';
