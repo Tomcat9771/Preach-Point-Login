@@ -1,71 +1,70 @@
 // server.js
+// server.js
 
-// ── Top of server.js (replace your current top with this) ─────────────────────
-import dotenv from 'dotenv';
+// ─── Imports ───────────────────────────────────────────────────────────────────
 import express from 'express';
-import crypto from 'crypto';
-import * as admin from 'firebase-admin';
-import OpenAI from 'openai';
-import NodeCache from 'node-cache';
 import fs from 'fs/promises';
 import path from 'path';
+import { OpenAI } from 'openai';
+import NodeCache from 'node-cache';
+import dotenv from 'dotenv';
+import crypto from 'crypto';
+
+// Firebase Admin (modular)
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 dotenv.config();
 
-// Create the Express app BEFORE any app.use(...) or routes
+// ─── App setup (create app ONCE, before any app.use/routes) ────────────────────
 const app = express();
-
-// Parsers (JSON + urlencoded; PayFast ITN uses urlencoded)
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false })); // PayFast ITN needs this
+app.use(express.static('public'));                // if you serve /public assets
 
-// Static (if you serve anything from /public)
-app.use(express.static('public'));
-
-// ── Firebase Admin init (uses base64 service account from env) ───────────────
+// ─── Firebase Admin init (using base64 service account from env) ──────────────
 const sa = JSON.parse(
   Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
 );
-if (!admin.apps.length) {
-  admin.initializeApp({ credential: admin.credential.cert(sa) });
+if (getApps().length === 0) {
+  initializeApp({ credential: cert(sa) });
 }
-const db = admin.firestore();
+const auth = getAuth();
+const db = getFirestore();
 
-// ── Auth helpers ─────────────────────────────────────────────────────────────
+// ─── Auth helpers ──────────────────────────────────────────────────────────────
 async function authOptional(req, _res, next) {
   try {
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
     if (token) {
-      const decoded = await admin.auth().verifyIdToken(token);
-      req.user = decoded; // custom claims (e.g., subscriber) appear here
+      const decoded = await auth.verifyIdToken(token);
+      req.user = decoded; // custom claims (e.g. subscriber)
     }
   } catch {
-    // ignore; unauthenticated requests will just not have req.user
+    // ignore; unauthenticated requests just won't have req.user
   }
   next();
 }
-
 function requireAuth(req, res, next) {
   if (!req.user?.uid) return res.status(401).json({ error: 'Sign in required' });
   next();
 }
-
 function requireSubscriber(req, res, next) {
-  if (!req.user?.subscriber) {
-    return res.status(402).json({ error: 'Subscription required' });
-  }
+  if (!req.user?.subscriber) return res.status(402).json({ error: 'Subscription required' });
   next();
 }
-
-// Register authOptional BEFORE your routes
 app.use(authOptional);
 
-// (Optional) quick debug route to see uid/email/subscriber when signed in
+// Optional debug route
 app.get('/api/me', requireAuth, (req, res) => {
   const { uid, email, subscriber } = req.user || {};
   res.json({ uid, email, subscriber: !!subscriber });
 });
+
+// ── Your other routes continue below…
+
 
 // ── (Your other routes continue below) ───────────────────────────────────────
 // e.g. app.post('/api/commentary', requireAuth, requireSubscriber, async (req,res)=>{...})
@@ -288,93 +287,7 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
   const sC = Number(startChap), eC = Number(endChap);
   const sV = Number(startV), eV = Number(endV);
 
-  const afBookNames = {
-  'Genesis': 'Genesis',
-  'Exodus': 'Eksodus',
-  'Leviticus': 'Levitikus',
-  'Numbers': 'Numeri',
-  'Deuteronomy': 'Deuteronomium',
-  'Joshua': 'Josua',
-  'Judges': 'Rigters',
-  'Ruth': 'Rut',
-  '1 Samuel': '1 Samuel',
-  'I Samuel': '1 Samuel',
-  '2 Samuel': '2 Samuel',
-  'II Samuel': '2 Samuel',
-  '1 Kings': '1 Konings',
-  'I Kings': '1 Konings',
-  '2 Kings': '2 Konings',
-  'II Kings': '2 Konings',
-  '1 Chronicles': '1 Kronieke',
-  'I Chronicles': '1 Kronieke',
-  '2 Chronicles': '2 Kronieke',
-  'II Chronicles': '2 Kronieke',
-  'Ezra': 'Esra',
-  'Nehemiah': 'Nehemia',
-  'Esther': 'Ester',
-  'Job': 'Job',
-  'Psalms': 'Psalms',
-  'Proverbs': 'Spreuke van Salomo',
-  'Ecclesiastes': 'Prediker',
-  'Song of Solomon': 'Hooglied van Salomo',
-  'Isaiah': 'Jesaja',
-  'Jeremiah': 'Jeremia',
-  'Lamentations': 'Klaagliedere van Jeremia',
-  'Ezekiel': 'Esegiël',
-  'Daniel': 'Daniël',
-  'Hosea': 'Hosea',
-  'Joel': 'Joël',
-  'Amos': 'Amos',
-  'Obadiah': 'Obadja',
-  'Jonah': 'Jona',
-  'Micah': 'Miga',
-  'Nahum': 'Nahum',
-  'Habakkuk': 'Habakuk',
-  'Zephaniah': 'Sefanja',
-  'Haggai': 'Haggai',
-  'Zechariah': 'Sagaria',
-  'Malachi': 'Maleagi',
-  'Matthew': 'Matteus',
-  'Mark': 'Markus',
-  'Luke': 'Lukas',
-  'John': 'Johannes',
-  'Acts': 'Die handelinge van die apostels',
-  'Romans': 'Romeine',
-  '1 Corinthians': '1 Korintiërs',
-  'I Corinthians': '1 Korintiërs',
-  '2 Corinthians': '2 Korintiërs',
-  'II Corinthians': '2 Korintiërs',
-  'Galatians': 'Galasiërs',
-  'Ephesians': 'Effesiërs',
-  'Philippians': 'Filippense',
-  'Colossians': 'Kolossense',
-  '1 Thessalonians': '1 Tessalonisense',
-  'I Thessalonians': '1 Tessalonisense',
-  '2 Thessalonians': '2 Tessalonisense',
-  'II Thessalonians': '2 Tessalonisense',
-  '1 Timothy': '1 Timoteus',
-  'I Timothy': '1 Timoteus',
-  '2 Timothy': '2 Timoteus',
-  'II Timothy': '2 Timoteus',
-  'Titus': 'Titus',
-  'Philemon': 'Filemon',
-  'Hebrews': 'Hebreërs',
-  'James': 'Jakobus',
-  '1 Peter': '1 Petrus',
-  'I Peter': '1 Petrus',
-  '2 Peter': '2 Petrus',
-  'II Peter': '2 Petrus',
-  '1 John': '1 Johannes',
-  'I John': '1 Johannes',
-  '2 John': '2 Johannes',
-  'II John': '2 Johannes',
-  '3 John': '3 Johannes',
-  'III John': '3 Johannes',
-  'Jude': 'Judas',
-  'Revelation of John': 'Die openbaring',
-'Revelation': 'Die openbaring',
-};
-
+  
   const normalizedBook = afBookNames[bookName] || bookName;
 
   const verses = afriData.filter(v => {
