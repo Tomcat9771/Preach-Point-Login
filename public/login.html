@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Preach Point — Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; }
+    h1 { margin-bottom: 8px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
+    label { display:block; margin-top:12px; }
+    input { width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; margin-top:6px; }
+    button { padding:10px 14px; border-radius:10px; border:1px solid #222; background:#111; color:#fff; cursor:pointer; margin-top:12px; }
+    button.secondary { background:#fff; color:#111; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    pre { background:#f7f7f7; padding:12px; border-radius:8px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>Preach Point — Login & Subscribe</h1>
+  <p id="msg">Not signed in.</p>
+
+  <div class="card">
+    <h3>Create account / Sign in</h3>
+    <label>Email <input id="email" type="email" autocomplete="email" required /></label>
+    <label>Password <input id="pass" type="password" autocomplete="current-password" required /></label>
+    <div class="row">
+      <button id="btnSignup" class="secondary">Create account</button>
+      <button id="btnSignin">Sign in</button>
+      <button id="btnSignout" class="secondary">Sign out</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Your status</h3>
+    <button id="btnMe" class="secondary">Check /api/me</button>
+    <pre id="meBox">{}</pre>
+  </div>
+
+  <div class="card">
+    <h3>Subscribe</h3>
+    <p>Starts the PayFast sandbox subscription flow.</p>
+    <button id="btnSubscribe">Subscribe — R99 / month</button>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import {
+      getAuth, onAuthStateChanged,
+      createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+    // TODO: REPLACE with your web config from Firebase Console → Project settings → "Web app"
+    const firebaseConfig = {
+      apiKey: "YOUR_WEB_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const msg = document.getElementById('msg');
+    const email = document.getElementById('email');
+    const pass  = document.getElementById('pass');
+    const meBox = document.getElementById('meBox');
+
+    function setMsg(t){ msg.textContent = t; }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const token = await user.getIdToken(false);
+        setMsg(`Signed in as ${user.email}`);
+        window.__idToken = token;
+      } else {
+        setMsg('Not signed in.');
+        window.__idToken = null;
+      }
+    });
+
+    document.getElementById('btnSignup').onclick = async () => {
+      try {
+        await createUserWithEmailAndPassword(auth, email.value, pass.value);
+        alert('Account created & signed in.');
+      } catch (e) { alert(e.message || e); }
+    };
+
+    document.getElementById('btnSignin').onclick = async () => {
+      try {
+        await signInWithEmailAndPassword(auth, email.value, pass.value);
+        alert('Signed in.');
+      } catch (e) { alert(e.message || e); }
+    };
+
+    document.getElementById('btnSignout').onclick = async () => {
+      await signOut(auth);
+      alert('Signed out.');
+    };
+
+    async function authFetchJson(url, opts = {}) {
+      const headers = { ...(opts.headers || {}), 'Content-Type': 'application/json' };
+      const user = auth.currentUser;
+      if (user) {
+        const t = await user.getIdToken(false);
+        headers.Authorization = `Bearer ${t}`;
+      }
+      const res = await fetch(url, { ...opts, headers });
+      const txt = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${txt}`);
+      return txt ? JSON.parse(txt) : null;
+    }
+
+    document.getElementById('btnMe').onclick = async () => {
+      try {
+        const data = await authFetchJson('/api/me');
+        meBox.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        meBox.textContent = String(e);
+      }
+    };
+
+    document.getElementById('btnSubscribe').onclick = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user) return alert('Please sign in first.');
+        const token = await user.getIdToken(false);
+        const res = await fetch('/api/payfast/subscribe', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+        const html = await res.text();
+        const w = window.open('', '_blank');
+        w.document.write(html);
+        w.document.close(); // auto-submits to PayFast
+      } catch (e) {
+        alert(e.message || e);
+      }
+    };
+  </script>
+</body>
+</html>
