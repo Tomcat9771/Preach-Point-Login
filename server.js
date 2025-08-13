@@ -5,7 +5,7 @@
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
-import { OpenAI } from 'openai';
+import OpenAI from 'openai';
 import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
@@ -357,7 +357,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       uid: req.user.uid,
       status: 'pending',
       plan: 'monthly',
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
     // Return an auto-submitting HTML form that posts to PayFast
@@ -430,19 +430,19 @@ app.post('/api/payfast/itn', async (req, res) => {
       uid,
       status: (subscriptionStatus || paymentStatus || 'unknown').toLowerCase(),
       lastItn: payload,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: FieldValue.serverTimestamp()
     }, { merge: true });
 
     // 5) Flip custom claim
     if ((subscriptionStatus === 'ACTIVE') || (paymentStatus === 'COMPLETE')) {
-      const user = await admin.auth().getUser(uid);
-      await admin.auth().setCustomUserClaims(uid, { ...(user.customClaims || {}), subscriber: true });
+      const user = await auth.getUser(uid);
+      await auth.setCustomUserClaims(uid, { ...(user.customClaims || {}), subscriber: true });
     }
     if ((subscriptionStatus === 'CANCELLED') || (paymentStatus === 'CANCELLED')) {
-      const user = await admin.auth().getUser(uid);
+      const user = await auth.getUser(uid);
       const cc = { ...(user.customClaims || {}) };
       delete cc.subscriber;
-      await admin.auth().setCustomUserClaims(uid, cc);
+      await auth.setCustomUserClaims(uid, cc);
     }
 
     // 6) Always 200 OK
