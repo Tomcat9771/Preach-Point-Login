@@ -399,6 +399,7 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 
   return verses.map(v => `${v.chapter}:${v.verse} ${v.text}`).join('\n');
 }
+
 //-------------------------------------------------------------------------------
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
@@ -664,6 +665,54 @@ const passageRef = `${afRefBook} ${startChapter}:${startVerse}-${endChapter || s
     res.status(500).json({ error: err.message });
   }
 });
+// 9.5️⃣ Endpoint: AI-only devotion
+app.post('/api/devotion', requireAuth, requireSubscriber, async (req, res) => {
+  try {
+    const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
+    if (!book || !startChapter || !startVerse) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+    const sCh = startChapter;
+    const eCh = endChapter || startChapter;
+    const sV  = startVerse;
+    const eV  = endVerse || startVerse;
+
+    const scripture = lang === 'af'
+      ? extractVersesAF(book, sCh, sV, eCh, eV)
+      : extractVerses(book, sCh, sV, eCh, eV);
+    const langLabel = lang === 'af' ? 'Afrikaans' : 'English';
+
+    const prompt = `Write a pastoral devotion in ${langLabel} based on the passage below. 
+- 3–5 concise paragraphs, warm and practical.
+- Faithful to the text; no speculative or controversial claims.
+- No headings or verse references in the body.
+- Include one clear application and one brief closing line of encouragement.
+Return only the devotion text.
+
+Passage:
+${scripture}`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: 'You are Preach Point AI. You write concise, pastoral devotions that are Biblically faithful and application-focused. Do not include headings, verse references, or introductions. Return only the devotion text.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.4,
+      max_tokens: 1000
+    });
+
+    let devotion = (completion.choices?.[0]?.message?.content || '').trim();
+    if (lang === 'af' && devotion) {
+      devotion = await proofreadText(devotion, 'af');
+    }
+    res.json({ devotion });
+  } catch (err) {
+    console.error('Error in /api/devotion:', err);
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
 
 // 🔟 Endpoint: AI-only prayer
 app.post('/api/prayer', requireAuth, requireSubscriber, async (req, res) => {
@@ -710,53 +759,7 @@ app.post('/api/prayer', requireAuth, requireSubscriber, async (req, res) => {
   }
 });
 
-// 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion', requireAuth, requireSubscriber, async (req, res) => {
-  try {
-    const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
-    if (!book || !startChapter || !startVerse) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-    const sCh = startChapter;
-    const eCh = endChapter || startChapter;
-    const sV  = startVerse;
-    const eV  = endVerse || startVerse;
 
-    const scripture = lang === 'af'
-      ? extractVersesAF(book, sCh, sV, eCh, eV)
-      : extractVerses(book, sCh, sV, eCh, eV);
-    const langLabel = lang === 'af' ? 'Afrikaans' : 'English';
-
-    const prompt = `Write a pastoral devotion in ${langLabel} based on the passage below. 
-- 3–5 short paragraphs.
-- Warm, concrete, and practical.
-- No verse references or headings in the body.
-- Include one clear application and one brief closing line of encouragement.
-Return only the devotion text.
-
-Passage:
-${scripture}`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'You are Preach Point AI. You write concise, pastoral devotions that are Biblically faithful and application-focused. Do not include headings, verse references, or introductions. Return only the devotion text.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.5,
-      max_tokens: 1000
-    });
-
-    let devotion = (completion.choices?.[0]?.message?.content || '').trim();
-    if (lang === 'af') {
-      devotion = await proofreadText(devotion, 'af');
-    }
-    res.json({ devotion });
-  } catch (err) {
-    console.error('Error in /api/devotion:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ─── Global error handler ───────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
