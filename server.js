@@ -68,6 +68,68 @@ app.get('/api/me', requireAuth, (req, res) => {
 
 // ── (Your other routes continue below) ───────────────────────────────────────
 // e.g. app.post('/api/commentary', requireAuth, requireSubscriber, async (req,res)=>{...})
+//*******************************************************************************************
+// ---- DEBUG: show masked PayFast/Firebase envs (no secrets) ----
+app.get('/api/debug/env', (_req, res) => {
+  const mask = v => (v ? (v.length > 6 ? v.slice(0,3) + '...' + v.slice(-3) : '***') : '(empty)');
+  res.json({
+    PAYFAST_MODE: process.env.PAYFAST_MODE || '(unset)',
+    PAYFAST_MERCHANT_ID: process.env.PAYFAST_MERCHANT_ID || '(unset)',
+    PAYFAST_MERCHANT_KEY: mask(process.env.PAYFAST_MERCHANT_KEY),
+    PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE ? '(set)' : '(empty)',
+    PAYFAST_RETURN_URL: process.env.PAYFAST_RETURN_URL || '(unset)',
+    PAYFAST_CANCEL_URL: process.env.PAYFAST_CANCEL_URL || '(unset)',
+    PAYFAST_NOTIFY_URL: process.env.PAYFAST_NOTIFY_URL || '(unset)',
+    SUBSCRIPTION_ITEM: process.env.SUBSCRIPTION_ITEM || '(unset)',
+    SUBSCRIPTION_AMOUNT: process.env.SUBSCRIPTION_AMOUNT || '(unset)',
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '(unset)',
+    SERVICE_ACCOUNT_BASE64_PRESENT: !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+  });
+});
+
+// ---- DEBUG: dry run subscribe (no PayFast redirect, no Firestore) ----
+app.get('/api/debug/subscribe-dry-run', (req, res) => {
+  try {
+    const isLive = process.env.PAYFAST_MODE === 'live';
+    const target = isLive
+      ? 'https://www.payfast.co.za/eng/process'
+      : 'https://sandbox.payfast.co.za/eng/process';
+
+    // Fake ids to avoid Firestore dependency in this dry run
+    const mPaymentId = 'debug_' + Math.random().toString(36).slice(2,10);
+
+    const fields = {
+      merchant_id:  process.env.PAYFAST_MERCHANT_ID,
+      merchant_key: process.env.PAYFAST_MERCHANT_KEY,
+      return_url:   process.env.PAYFAST_RETURN_URL,
+      cancel_url:   process.env.PAYFAST_CANCEL_URL,
+      notify_url:   process.env.PAYFAST_NOTIFY_URL,
+      m_payment_id: mPaymentId,
+      amount:       process.env.SUBSCRIPTION_AMOUNT,
+      item_name:    process.env.SUBSCRIPTION_ITEM,
+      subscription_type: 1,
+      billing_date: '',
+      recurring_amount: process.env.SUBSCRIPTION_AMOUNT,
+      frequency: 3,
+      cycles: 0,
+      custom_str1: 'debug-uid'
+    };
+
+    const paramStr = buildPfParamString(fields, process.env.PAYFAST_PASSPHRASE);
+    const signature = md5Hex(paramStr);
+
+    res.json({
+      target,
+      fields,
+      signature,
+      note: 'This is a dry run. No Firestore writes, no redirect. Compare mode + merchant + passphrase with what you expect.'
+    });
+  } catch (e) {
+    console.error('dry-run error:', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
+//****************************************************************************************************
 
 //----------------------------------------------------------------------------------
 
