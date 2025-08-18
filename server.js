@@ -379,7 +379,9 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
   try {
-    // ✅ Check that all PayFast env vars are set
+    const isLive = process.env.PAYFAST_MODE === 'live';
+
+    // ENV CHECK — require passphrase only in LIVE mode
     const requiredEnvVars = [
       'PAYFAST_MODE',
       'PAYFAST_MERCHANT_ID',
@@ -389,29 +391,27 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       'PAYFAST_NOTIFY_URL',
       'SUBSCRIPTION_AMOUNT',
       'SUBSCRIPTION_ITEM',
-      'PAYFAST_PASSPHRASE'
     ];
+    if (isLive) requiredEnvVars.push('PAYFAST_PASSPHRASE');
 
     console.log('🔍 Checking PayFast environment variables:');
-    let missingVars = [];
+    const missingVars = [];
     for (const key of requiredEnvVars) {
       if (!process.env[key]) {
         console.warn(`⚠️ MISSING: ${key}`);
         missingVars.push(key);
       } else {
-        console.log(`✅ ${key} = ${process.env[key]}`);
+        console.log(`✅ ${key} = ${key.includes('KEY') ? '[masked]' : process.env[key]}`);
       }
     }
-
     if (missingVars.length > 0) {
-      console.error('❌ Cannot proceed — Missing required PayFast environment variables:', missingVars);
-      return res.status(500).json({
-        error: `Missing required PayFast environment variables: ${missingVars.join(', ')}`
+      return res.status(400).json({
+        error: 'Missing required PayFast environment variables',
+        missing: missingVars
       });
     }
 
-    // Determine target PayFast URL
-    const isLive = process.env.PAYFAST_MODE === 'live';
+    // Choose target based on mode
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
@@ -420,38 +420,47 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     const subRef = db.collection('subscriptions').doc();
     const mPaymentId = subRef.id;
 
-    // Required fields for PayFast subscriptions
+    // Price as "99.00"
+    const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
+
+    // Build fields
     const fields = {
       merchant_id:  process.env.PAYFAST_MERCHANT_ID,
       merchant_key: process.env.PAYFAST_MERCHANT_KEY,
       return_url:   process.env.PAYFAST_RETURN_URL,
       cancel_url:   process.env.PAYFAST_CANCEL_URL,
       notify_url:   process.env.PAYFAST_NOTIFY_URL,
-      m_payment_id: mPaymentId,                         // your internal id
-      amount:       process.env.SUBSCRIPTION_AMOUNT,    // initial amount
+      m_payment_id: mPaymentId,
+      amount:       price,
       item_name:    process.env.SUBSCRIPTION_ITEM,
 
       // Recurring
-      subscription_type: 1,                             // 1 = subscription
-      billing_date: '',                                 // blank = now (optional YYYY-MM-DD)
-      recurring_amount: process.env.SUBSCRIPTION_AMOUNT,
-      frequency: 3,                                     // 3 = monthly
-      cycles: 0,                                        // 0 = infinite
+      subscription_type: 1,
+      billing_date: '',
+      recurring_amount:  price,
+      frequency: 3,
+      cycles: 0,
 
-      // Custom (link back to Firebase user)
-      custom_str1: req.user.uid
+      // Custom
+      custom_str1: req.user.uid,
+      // (optional buyer hints; harmless if omitted)
+      // email_address: req.user?.email || '',
+      // name_first: 'Sandbox',
+      // name_last:  'User',
     };
 
-    // Sign with your passphrase
-    const paramStr = buildPfParamString(fields, process.env.PAYFAST_PASSPHRASE);
+    // Signature: include passphrase only in LIVE mode
+    const paramStr = buildPfParamString(
+      fields,
+      isLive ? process.env.PAYFAST_PASSPHRASE : null
+    );
     const signature = md5Hex(paramStr);
 
-    // 🔍 Debug logging
-    console.log('PayFast target:', target);
-    console.log('PayFast fields:', fields);
-    console.log('PayFast signature:', signature);
+    console.log('PF target:', target);
+    console.log('PF fields:', fields);
+    console.log('PF sign paramStr:', paramStr);
+    console.log('PF signature:', signature);
 
-    // Save pending record
     await subRef.set({
       uid: req.user.uid,
       status: 'pending',
@@ -459,7 +468,6 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       createdAt: FieldValue.serverTimestamp()
     });
 
-    // Return an auto-submitting HTML form that posts to PayFast
     const inputs = Object.entries({ ...fields, signature })
       .map(([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}"/>`)
       .join('');
