@@ -374,7 +374,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
 
     const isLive = process.env.PAYFAST_MODE === 'live';
 
-    // Env checks — require passphrase ONLY in live
+    // Env checks — require passphrase ONLY in LIVE
     const required = [
       'PAYFAST_MODE','PAYFAST_MERCHANT_ID','PAYFAST_MERCHANT_KEY',
       'PAYFAST_RETURN_URL','PAYFAST_CANCEL_URL','PAYFAST_NOTIFY_URL',
@@ -420,7 +420,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       custom_str1: req.user.uid
     };
 
-    // SIGN: passphrase ONLY in LIVE
+    // SIGN: passphrase ONLY in LIVE (buildPfParamString must use form-style encoding with + for spaces)
     const paramStr  = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
     const signature = md5Hex(paramStr);
 
@@ -436,15 +436,28 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       createdAt: FieldValue.serverTimestamp()
     });
 
+    // HTML-escape values so the browser posts exactly what we signed
+    const escapeHtmlAttr = (s) =>
+      String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
     const inputs = Object.entries({ ...fields, signature })
-      .map(([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}" />`)
+      .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}" />`)
       .join('');
+
+    // (Optional) one-time debug to compare what we post vs what we signed
+    console.log('PF form inputs posted:', Object.fromEntries(Object.entries({ ...fields, signature }).map(([k,v]) => [k, String(v)])));
 
     return res
       .set('Content-Type','text/html')
       .send(`<!doctype html>
 <html><body onload="document.forms[0].submit()">
-  <form action="${target}" method="post">${inputs}</form>
+  <form action="${target}" method="post">
+    ${inputs}
+  </form>
   <p>Redirecting to PayFast…</p>
 </body></html>`);
   } catch (err) {
