@@ -130,27 +130,6 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
   }
 });
 
-//*******************************************************************
-console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
-console.log('PF target:', target);
-console.log('PF fields (pre-post):', fields);
-console.log('PF sign paramStr:', paramStr);
-console.log('PF signature:', signature);
-//*******************************************************************
-
-    res.json({
-      target,
-      fields,
-      signature,
-      note: 'This is a dry run. No Firestore writes, no redirect. Compare mode + merchant + passphrase with what you expect.'
-    });
-  } catch (e) {
-    console.error('dry-run error:', e);
-    res.status(500).json({ error: String(e) });
-  }
-});
-//****************************************************************************************************
-
 //----------------------------------------------------------------------------------
 
 function encodeFormComponent(str) {
@@ -473,6 +452,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     console.error('subscribe error:', err);
     return res.status(500).json({ error: 'Could not start subscription' });
   }
+});
 
 //------------------------------------------------------------------------------
 async function validateWithPayFast(paramStrNoPassphrase) {
