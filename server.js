@@ -132,12 +132,6 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
 
 //----------------------------------------------------------------------------------
 
-// RFC 3986 (rawurlencode) — spaces -> %20
-function encodeRFC3986(str) {
-  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
-    '%' + c.charCodeAt(0).toString(16).toUpperCase()
-  );
-}
 //***********************************************************************************
 // Official-ish field order used by PayFast when constructing the hash
 const PF_FIELD_ORDER = [
