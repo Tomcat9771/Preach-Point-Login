@@ -132,23 +132,27 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
 
 //----------------------------------------------------------------------------------
 
-function encodeFormComponent(str) {
-  // application/x-www-form-urlencoded: spaces -> '+'
-  return encodeURIComponent(str).replace(/%20/g, '+');
+// RFC 3986 (rawurlencode) — spaces -> %20
+function encodeRFC3986(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
+    '%' + c.charCodeAt(0).toString(16).toUpperCase()
+  );
 }
 
+// Build k=v pairs in alphabetical order, trim values, skip empties.
+// Append passphrase ONLY in LIVE mode.
 function buildPfParamString(fields, passphrase) {
-  const keys = Object.keys(fields).sort();       // alphabetical by key
+  const keys = Object.keys(fields).sort(); // alphabetical
   const parts = [];
   for (const k of keys) {
     const v = fields[k];
     if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') continue;                      // skip empties
-    parts.push(`${k}=${encodeFormComponent(s)}`); // <-- form-style encoding
+    if (s === '') continue; // skip empty values
+    parts.push(`${k}=${encodeRFC3986(s)}`);
   }
-  if (passphrase && String(passphrase).trim()) {
-    parts.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
+  if (passphrase && String(passphrase).trim().length > 0) {
+    parts.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
   }
   return parts.join('&');
 }
@@ -156,7 +160,6 @@ function buildPfParamString(fields, passphrase) {
 function md5Hex(s) {
   return crypto.createHash('md5').update(s, 'utf8').digest('hex');
 }
-
 //--------------------------------------------------------------------------------
 
 // ─── 2️⃣ Load kjv.json once at startup ──────────────────────────────────────────
