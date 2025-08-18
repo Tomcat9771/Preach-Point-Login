@@ -132,13 +132,15 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
 
 //----------------------------------------------------------------------------------
 
-function encodeFormComponent(str) {
-  // application/x-www-form-urlencoded: spaces -> '+'
-  return encodeURIComponent(str).replace(/%20/g, '+');
+// RFC 3986 encoding (like PHP rawurlencode): spaces -> %20
+function encodeRFC3986(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
+    '%' + c.charCodeAt(0).toString(16).toUpperCase()
+  );
 }
 
-// Build k=v pairs in alphabetical key order, trim values, skip empties.
-// Append passphrase ONLY if provided (LIVE).
+// Build k=v pairs in alphabetical order, trim values, skip empties.
+// Append passphrase ONLY if provided (LIVE mode).
 function buildPfParamString(fields, passphrase) {
   const keys = Object.keys(fields).sort();
   const pairs = [];
@@ -146,11 +148,11 @@ function buildPfParamString(fields, passphrase) {
     const v = fields[k];
     if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') continue;
-    pairs.push(`${k}=${encodeFormComponent(s)}`);
+    if (s === '') continue;                          // skip empties
+    pairs.push(`${k}=${encodeRFC3986(s)}`);          // <- RFC3986
   }
-  if (passphrase && String(passphrase).trim().length > 0) {
-    pairs.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
+  if (passphrase && String(passphrase).trim()) {
+    pairs.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
   }
   return pairs.join('&');
 }
