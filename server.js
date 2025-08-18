@@ -95,31 +95,38 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
 
-    // Fake ids to avoid Firestore dependency in this dry run
+    const tidy = (x) => (x == null ? '' : String(x).trim());
+    const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
     const mPaymentId = 'debug_' + Math.random().toString(36).slice(2,10);
 
     const fields = {
-  merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
-  merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
-  return_url:    tidy(process.env.PAYFAST_RETURN_URL),
-  cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
-  notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
+      merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
+      merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+      return_url:    tidy(process.env.PAYFAST_RETURN_URL),
+      cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
+      notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
 
-  m_payment_id:  mPaymentId,
-  amount:        price,
-  item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
+      m_payment_id:  mPaymentId,
+      amount:        price,
+      item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
 
-  // Recurring subscription fields
-  subscription_type: 1,       // 1 = subscription
-  billing_date: '',           // omit if empty (helper skips '')
-  recurring_amount: price,
-  frequency: 3,               // 3 = monthly
-  cycles: 0,                  // 0 = indefinite
+      subscription_type: 1,
+      recurring_amount:  price,
+      frequency: 3,
+      cycles: 0,
 
-  // Custom data (safe)
-  custom_str1: req.user.uid
-};
+      custom_str1: 'debug-uid'
+    };
 
+    const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+    const signature = md5Hex(paramStr);
+
+    res.json({ target, fields, signature, note: 'This is a dry run. No Firestore writes, no redirect.' });
+  } catch (e) {
+    console.error('dry-run error:', e);
+    res.status(500).json({ error: String(e) });
+  }
+});
     // IMPORTANT: passphrase ONLY in LIVE
 const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
 const signature = md5Hex(paramStr);
@@ -146,10 +153,9 @@ console.log('PF signature:', signature);
 
 //----------------------------------------------------------------------------------
 
-function encodeRFC3986(str) {
-  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
-    '%' + c.charCodeAt(0).toString(16).toUpperCase()
-  );
+function encodeFormComponent(str) {
+  // application/x-www-form-urlencoded: spaces -> '+'
+  return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
 // Build the PayFast parameter string in a consistent order.
@@ -157,21 +163,28 @@ function encodeRFC3986(str) {
 // Build k=v pairs in strict alphabetical order, trim values, skip empties.
 // Append passphrase only if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
+  // 1) Alphabetical by key
+  const keys = Object.keys(fields).sort();
+
+  // 2) Trim and skip empty values
   const pairs = [];
-  Object.keys(fields).sort().forEach((k) => {
+  for (const k of keys) {
     const v = fields[k];
-    if (v === undefined || v === null) return;
+    if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') return;                        // PayFast: skip empty values
-    pairs.push(`${k}=${encodeRFC3986(s)}`);
-  });
+    if (s === '') continue;
+    pairs.push(`${k}=${encodeFormComponent(s)}`);
+  }
+
 
   let paramStr = pairs.join('&');
 
+  // 3) Append passphrase ONLY if provided (LIVE)
   if (passphrase && String(passphrase).trim().length > 0) {
-    paramStr += `&passphrase=${encodeRFC3986(String(passphrase).trim())}`;
+    pairs.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
   }
-  return paramStr;
+
+  return pairs.join('&');
 }
 
 function md5Hex(input) {
@@ -395,7 +408,6 @@ const target = isLive
   ? 'https://www.payfast.co.za/eng/process'
   : 'https://sandbox.payfast.co.za/eng/process';
 
-
     // ENV CHECK — require passphrase only in LIVE mode
     const requiredEnvVars = [
       'PAYFAST_MODE',
@@ -432,49 +444,43 @@ const target = isLive
       : 'https://sandbox.payfast.co.za/eng/process';
 
     // Create a Firestore doc to track this subscription
-    const subRef = db.collection('subscriptions').doc();
-    const mPaymentId = subRef.id;
+    //const subRef = db.collection('subscriptions').doc();
+    //const mPaymentId = subRef.id;
 
     // Price as "99.00"
     const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
 
     // Build fields
     const fields = {
-      merchant_id:  process.env.PAYFAST_MERCHANT_ID,
-      merchant_key: process.env.PAYFAST_MERCHANT_KEY,
-      return_url:   process.env.PAYFAST_RETURN_URL,
-      cancel_url:   process.env.PAYFAST_CANCEL_URL,
-      notify_url:   process.env.PAYFAST_NOTIFY_URL,
-      m_payment_id: mPaymentId,
-      amount:       price,
-      item_name:    process.env.SUBSCRIPTION_ITEM,
+  merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
+  merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+  return_url:    tidy(process.env.PAYFAST_RETURN_URL),
+  cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
+  notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
 
-      // Recurring
-      subscription_type: 1,
-      billing_date: '',
-      recurring_amount:  price,
-      frequency: 3,
-      cycles: 0,
+  m_payment_id:  mPaymentId,
+  amount:        price,
+  item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
 
-      // Custom
-      custom_str1: req.user.uid,
-      // (optional buyer hints; harmless if omitted)
-      // email_address: req.user?.email || '',
-      // name_first: 'Sandbox',
-      // name_last:  'User',
-    };
+  // Recurring subscription
+  subscription_type: 1,
+  // billing_date: '',                // omit; helper skips empties
+  recurring_amount: price,
+  frequency: 3,
+  cycles: 0,
 
-    // Signature: include passphrase only in LIVE mode
-    const paramStr = buildPfParamString(
-      fields,
-      isLive ? process.env.PAYFAST_PASSPHRASE : null
-    );
-    const signature = md5Hex(paramStr);
+  // Link back to the Firebase user
+  custom_str1: req.user.uid,
+};
 
-    console.log('PF target:', target);
-    console.log('PF fields:', fields);
-    console.log('PF sign paramStr:', paramStr);
-    console.log('PF signature:', signature);
+// Signature: include passphrase ONLY in LIVE
+const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+const signature = md5Hex(paramStr);
+
+console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
+console.log('PF target:', target);
+console.log('PF sign paramStr:', paramStr);
+console.log('PF signature:', signature);
 
     await subRef.set({
       uid: req.user.uid,
@@ -548,9 +554,10 @@ app.post('/api/payfast/itn', async (req, res) => {
     const subscriptionStatus = payload.subscription_status; // e.g., ACTIVE / CANCELLED (varies by event)
 
 const tidy = (x) => (x == null ? '' : String(x).trim());
+const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
 
     // 4) Update Firestore subscription doc
-    const subRef = db.collection('subscriptions').doc();
+    const subRef = db.collection('subscriptions').doc(mPaymentId);
 const mPaymentId = subRef.id;
     await subRef.set({
       uid,
