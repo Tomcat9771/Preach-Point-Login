@@ -132,34 +132,32 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
 
 //----------------------------------------------------------------------------------
 
-// RFC 3986 encoding (like PHP rawurlencode): spaces -> %20
-function encodeRFC3986(str) {
-  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
-    '%' + c.charCodeAt(0).toString(16).toUpperCase()
-  );
+function encodeFormComponent(str) {
+  // application/x-www-form-urlencoded: spaces -> '+'
+  return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
-// Build k=v pairs in alphabetical order, trim values, skip empties.
-// Append passphrase ONLY if provided (LIVE mode).
 function buildPfParamString(fields, passphrase) {
-  const keys = Object.keys(fields).sort();
-  const pairs = [];
+  const keys = Object.keys(fields).sort();       // alphabetical by key
+  const parts = [];
   for (const k of keys) {
     const v = fields[k];
     if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') continue;                          // skip empties
-    pairs.push(`${k}=${encodeRFC3986(s)}`);          // <- RFC3986
+    if (s === '') continue;                      // skip empties
+    parts.push(`${k}=${encodeFormComponent(s)}`); // <-- form-style encoding
   }
   if (passphrase && String(passphrase).trim()) {
-    pairs.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
+    parts.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
   }
-  return pairs.join('&');
+  return parts.join('&');
 }
 
-function md5Hex(input) {
-  return crypto.createHash('md5').update(input, 'utf8').digest('hex');
+import crypto from 'crypto';
+function md5Hex(s) {
+  return crypto.createHash('md5').update(s, 'utf8').digest('hex');
 }
+
 //--------------------------------------------------------------------------------
 
 // ─── 2️⃣ Load kjv.json once at startup ──────────────────────────────────────────
