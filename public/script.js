@@ -1,17 +1,20 @@
 // ─── safeFetchJson helper ─────────────────────────────────────
-/**
- * Fetches URL and returns parsed JSON, or throws with the raw text on error.
- */
-async function safeFetchJson(url) {
-  const res = await fetch(url);
+// Replace the existing safeFetchJson in script.js with:
+async function safeFetchJson(url, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  const auth = window.__auth;
+  if (auth?.currentUser) {
+    const t = await auth.currentUser.getIdToken(/*forceRefresh=*/false);
+    headers.Authorization = `Bearer ${t}`;
+  }
+  const res = await fetch(url, { ...opts, headers });
   const txt = await res.text();
   if (!res.ok) {
     console.error('API error response:', txt);
     throw new Error(`HTTP ${res.status}: ${txt}`);
   }
-  return JSON.parse(txt);
+  return txt ? JSON.parse(txt) : null;
 }
-const { jsPDF } = window.jspdf;
 
 // ─── Localized Afrikaans book names (same order as /api/books) ──
 const afBookNames = [
@@ -230,11 +233,11 @@ function onReset() {
   $('end-verse').value = '';
   $('tone').value = '';
   $('level').value = '';
-  $('lang').value = 'af';
   $('verses').textContent = '';
   $('commentary').textContent = '';
   $('devotionOutput').textContent = '';
   $('prayer').textContent = '';
+  updateUI();
 }
 // ─── Wire up event listeners ─────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
@@ -264,177 +267,89 @@ async function onGenerate() {
     return;
   }
 
-  const afBookNames = {
-  'Genesis': 'Genesis',
-  'Exodus': 'Eksodus',
-  'Leviticus': 'Levitikus',
-  'Numbers': 'Numeri',
-  'Deuteronomy': 'Deuteronomium',
-  'Joshua': 'Josua',
-  'Judges': 'Rigters',
-  'Ruth': 'Rut',
-  '1 Samuel': '1 Samuel',
-  'I Samuel': '1 Samuel',
-  '2 Samuel': '2 Samuel',
-  'II Samuel': '2 Samuel',
-  '1 Kings': '1 Konings',
-  'I Kings': '1 Konings',
-  '2 Kings': '2 Konings',
-  'II Kings': '2 Konings',
-  '1 Chronicles': '1 Kronieke',
-  'I Chronicles': '1 Kronieke',
-  '2 Chronicles': '2 Kronieke',
-  'II Chronicles': '2 Kronieke',
-  'Ezra': 'Esra',
-  'Nehemiah': 'Nehemia',
-  'Esther': 'Ester',
-  'Job': 'Job',
-  'Psalms': 'Psalms',
-  'Proverbs': 'Spreuke van Salomo',
-  'Ecclesiastes': 'Prediker',
-  'Song of Solomon': 'Hooglied van Salomo',
-  'Isaiah': 'Jesaja',
-  'Jeremiah': 'Jeremia',
-  'Lamentations': 'Klaagliedere van Jeremia',
-  'Ezekiel': 'Esegiël',
-  'Daniel': 'Daniël',
-  'Hosea': 'Hosea',
-  'Joel': 'Joël',
-  'Amos': 'Amos',
-  'Obadiah': 'Obadja',
-  'Jonah': 'Jona',
-  'Micah': 'Miga',
-  'Nahum': 'Nahum',
-  'Habakkuk': 'Habakuk',
-  'Zephaniah': 'Sefanja',
-  'Haggai': 'Haggai',
-  'Zechariah': 'Sagaria',
-  'Malachi': 'Maleagi',
-  'Matthew': 'Matteus',
-  'Mark': 'Markus',
-  'Luke': 'Lukas',
-  'John': 'Johannes',
-  'Acts': 'Die handelinge van die apostels',
-  'Romans': 'Romeine',
-  '1 Corinthians': '1 Korintiërs',
-  'I Corinthians': '1 Korintiërs',
-  '2 Corinthians': '2 Korintiërs',
-  'II Corinthians': '2 Korintiërs',
-  'Galatians': 'Galasiërs',
-  'Ephesians': 'Effesiërs',
-  'Philippians': 'Filippense',
-  'Colossians': 'Kolossense',
-  '1 Thessalonians': '1 Tessalonisense',
-  'I Thessalonians': '1 Tessalonisense',
-  '2 Thessalonians': '2 Tessalonisense',
-  'II Thessalonians': '2 Tessalonisense',
-  '1 Timothy': '1 Timoteus',
-  'I Timothy': '1 Timoteus',
-  '2 Timothy': '2 Timoteus',
-  'II Timothy': '2 Timoteus',
-  'Titus': 'Titus',
-  'Philemon': 'Filemon',
-  'Hebrews': 'Hebreërs',
-  'James': 'Jakobus',
-  '1 Peter': '1 Petrus',
-  'I Peter': '1 Petrus',
-  '2 Peter': '2 Petrus',
-  'II Peter': '2 Petrus',
-  '1 John': '1 Johannes',
-  'I John': '1 Johannes',
-  '2 John': '2 Johannes',
-  'II John': '2 Johannes',
-  '3 John': '3 Johannes',
-  'III John': '3 Johannes',
-  'Jude': 'Judas',
-  'Revelation of John': 'Die openbaring',
-'Revelation': 'Die openbaring',
+  // Afrikaans display names mapping (English -> Afrikaans)
+  const afBookMap = {
+    'Genesis':'Genesis','Exodus':'Eksodus','Leviticus':'Levitikus','Numbers':'Numeri','Deuteronomy':'Deuteronomium',
+    'Joshua':'Josua','Judges':'Rigters','Ruth':'Rut','1 Samuel':'1 Samuel','I Samuel':'1 Samuel','2 Samuel':'2 Samuel','II Samuel':'2 Samuel',
+    '1 Kings':'1 Konings','I Kings':'1 Konings','2 Kings':'2 Konings','II Kings':'2 Konings','1 Chronicles':'1 Kronieke','I Chronicles':'1 Kronieke',
+    '2 Chronicles':'2 Kronieke','II Chronicles':'2 Kronieke','Ezra':'Esra','Nehemiah':'Nehemia','Esther':'Ester','Job':'Job','Psalms':'Psalms',
+    'Proverbs':'Spreuke van Salomo','Ecclesiastes':'Prediker','Song of Solomon':'Hooglied van Salomo','Isaiah':'Jesaja','Jeremiah':'Jeremia',
+    'Lamentations':'Klaagliedere van Jeremia','Ezekiel':'Esegiël','Daniel':'Daniël','Hosea':'Hosea','Joel':'Joël','Amos':'Amos','Obadiah':'Obadja',
+    'Jonah':'Jona','Micah':'Miga','Nahum':'Nahum','Habakkuk':'Habakuk','Zephaniah':'Sefanja','Haggai':'Haggai','Zechariah':'Sagaria',
+    'Malachi':'Maleagi','Matthew':'Matteus','Mark':'Markus','Luke':'Lukas','John':'Johannes','Acts':'Die handelinge van die apostels',
+    'Romans':'Romeine','1 Corinthians':'1 Korintiërs','I Corinthians':'1 Korintiërs','2 Corinthians':'2 Korintiërs','II Corinthians':'2 Korintiërs',
+    'Galatians':'Galasiërs','Ephesians':'Effesiërs','Philippians':'Filippense','Colossians':'Kolossense','1 Thessalonians':'1 Tessalonisense',
+    'I Thessalonians':'1 Tessalonisense','2 Thessalonians':'2 Tessalonisense','II Thessalonians':'2 Tessalonisense','1 Timothy':'1 Timoteus',
+    'I Timothy':'1 Timoteus','2 Timothy':'2 Timoteus','II Timothy':'2 Timoteus','Titus':'Titus','Philemon':'Filemon','Hebrews':'Hebreërs',
+    'James':'Jakobus','1 Peter':'1 Petrus','I Peter':'1 Petrus','2 Peter':'2 Petrus','II Peter':'2 Petrus','1 John':'1 Johannes','I John':'1 Johannes',
+    '2 John':'2 Johannes','II John':'2 Johannes','3 John':'3 Johannes','III John':'3 Johannes','Jude':'Judas',
+    'Revelation of John':'Die openbaring','Revelation':'Die openbaring'
   };
 
-  // 🟡 Normalize book name for Afrikaans
-  let displayBook = bookName;
-if (lang === 'af') {
-  displayBook = afBookNames[bookName] || bookName;
-}
+  // Normalize book name for display when Afrikaans is selected
+  let displayBook = (lang === 'af') ? (afBookMap[bookName] || bookName) : bookName;
 
-  // ① Show spinners
-  $('verses').innerHTML     = '<div class="spinner spinner--dual-ring"></div>';
-  $('commentary').innerHTML = '<div class="spinner spinner--dual-ring"></div>';
-  $('devotionOutput').innerHTML = '<div class="spinner spinner--dual-ring"></div>';
-  $('prayer').innerHTML     = '<div class="spinner spinner--dual-ring"></div>';
+  // Show spinners
+  $('verses').innerHTML        = '<div class="spinner spinner--dual-ring"></div>';
+  $('commentary').innerHTML    = '<div class="spinner spinner--dual-ring"></div>';
+  $('devotionOutput').innerHTML= '<div class="spinner spinner--dual-ring"></div>';
+  $('prayer').innerHTML        = '<div class="spinner spinner--dual-ring"></div>';
 
-// 🧮 Optional: enforce maximum of 50 verses
-if (lang === 'af' || lang === 'en') {
-  const sChapter = parseInt(sCh);
-  const eChapter = parseInt(eCh);
-  const sVerse   = parseInt(sV);
-  const eVerse   = parseInt(eV);
-
-  // Single chapter case
-  let totalVerses = 0;
-  if (sChapter === eChapter) {
-    totalVerses = eVerse - sVerse + 1;
-  } else {
-    // Fetch verses in start and end chapters
-    const startRes = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${sChapter}`);
-    const endRes   = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${eChapter}`);
-    const startTotal = startRes.verses.length;
-    const endTotal   = endRes.verses.length;
-
-    totalVerses = (startTotal - sVerse + 1) + eVerse;
-    if (eChapter - sChapter > 1) {
-      totalVerses += 999;  // fallback estimation for middle chapters
-    }
-  }
-
-  const maxLimit = 50;
-  if (totalVerses > maxLimit) {
-    return alert(
-      `Please limit your selection to ${maxLimit} verses.\n` +
-      `You selected ${totalVerses}.`
-    );
-  }
-}
-
-  // ② Fetch & render verses
+  // Optional: enforce maximum of 50 verses across the selection
   try {
-    const url     = lang === 'af' ? '/api/translate' : '/api/verses';
-    const payload = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV };
-    const res     = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
+    const sChapter = parseInt(sCh);
+    const eChapter = parseInt(eCh);
+    const sVerse   = parseInt(sV);
+    const eVerse   = parseInt(eV);
+    let totalVerses = 0;
+
+    if (sChapter === eChapter) {
+      totalVerses = eVerse - sVerse + 1;
+    } else {
+      const startRes   = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${sChapter}`);
+      const endRes     = await safeFetchJson(`/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${eChapter}`);
+      const startTotal = startRes.verses.length;
+      const endTotal   = endRes.verses.length;
+      totalVerses = (startTotal - sVerse + 1) + eVerse;
+      if (eChapter - sChapter > 1) totalVerses += 999; // rough middle chapters
+    }
+
+    const maxLimit = 50;
+    if (totalVerses > maxLimit) {
+      alert(`Please limit your selection to ${maxLimit} verses. You selected ${totalVerses}.`);
+      return;
+    }
+  } catch (e) {
+    console.warn('Verse limit check skipped:', e);
+  }
+
+  // 1) Fetch & render verses
+  try {
+    const versesUrl = (lang === 'af') ? '/api/translate' : '/api/verses';
+    const payload   = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV };
+    const js        = await safeFetchJson(versesUrl, {
+      method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload)
     });
-    const js = await res.json();
-    if (!res.ok) throw new Error(js.error || 'Fetch error');
 
-    console.log("Translate response:", js); // ✅ debug log
+    const verseBlock =
+      (lang === 'af')
+        ? (js.translation || js.scripture || '[Geen teks gevind nie]')
+        : (js.text || '[No text found]');
 
-let verseBlock;
-if (lang === 'af') {
-  verseBlock = js.translation || js.scripture || '[Geen teks gevind nie]';
-} else {
-  verseBlock = js.text || '[No text found]';
-}
-
-$('verses').textContent = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}\n\n${verseBlock}`;
+    $('verses').textContent = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}\n\n${verseBlock}`;
   } catch (e) {
     $('verses').textContent = `Error: ${e.message}`;
-    return;
+    return; // stop further steps if verses fail
   }
 
-  // ③ Fetch & render commentary
+  // 2) Commentary (protected)
   try {
-    const payload2 = { book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, tone, level: lvl, lang };
-    const res2 = await fetch('/api/commentary', {
+    const js2 = await safeFetchJson('/api/commentary', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload2)
+      body: JSON.stringify({ book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, tone, level: lvl, lang })
     });
-    const js2 = await res2.json();
-    if (!res2.ok) throw new Error(js2.error || 'Commentary error');
-
-    let commentaryText = js2.commentary;
+    let commentaryText = js2.commentary || '';
     if (lang === 'af') {
       commentaryText = commentaryText.replace(/^Conclusie\b/, 'Gevolgtrekking');
     }
@@ -443,44 +358,29 @@ $('verses').textContent = `${displayBook} ${sCh}:${sV}–${eCh}:${eV}\n\n${verse
     $('commentary').textContent = `Error: ${e.message}`;
   }
 
-// NEW: ④ Fetch & render devotion
-try {
-  const resD = await fetch('/api/devotion', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      book: bookName,
-      startChapter: sCh,
-      startVerse: sV,
-      endChapter: eCh,
-      endVerse: eV,
-      lang
-    })
-  });
-  const jsD = await resD.json();
-  if (!resD.ok) throw new Error(jsD.error || 'Devotion error');
-  $('devotionOutput').textContent = jsD.devotion;
-} catch (e) {
-  $('devotionOutput').textContent = `Error: ${e.message}`;
-}
-
-
-
-  // ④ Fetch & render prayer
+  // 3) Devotion (protected)
   try {
-    const res3 = await fetch('/api/prayer', {
+    const jsD = await safeFetchJson('/api/devotion', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, lang })
     });
-    const js3 = await res3.json();
-    if (!res3.ok) throw new Error(js3.error || 'Prayer error');
+    $('devotionOutput').textContent = jsD.devotion || '';
+  } catch (e) {
+    $('devotionOutput').textContent = `Error: ${e.message}`;
+  }
 
-    $('prayer').textContent = js3.prayer;
+  // 4) Prayer (protected)
+  try {
+    const js3 = await safeFetchJson('/api/prayer', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ book: bookName, startChapter: sCh, startVerse: sV, endChapter: eCh, endVerse: eV, lang })
+    });
+    $('prayer').textContent = js3.prayer || '';
   } catch (e) {
     $('prayer').textContent = `Error: ${e.message}`;
-  
-}
+  }
 }
 
   

@@ -10,6 +10,31 @@
   <script defer src="script.js"></script>
 </head>
 <link rel="icon" type="image/png" href="/favicon.png">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
+    authDomain: "preach-point.firebaseapp.com",
+    projectId: "preach-point",
+    storageBucket: "preach-point.firebasestorage.app",
+    messagingSenderId: "699269130347",
+    appId: "1:699269130347:web:a6617996b042821089692e",
+    measurementId: "G-3L6CZ43J51"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  window.__auth = auth; // expose to script.js
+
+  onAuthStateChanged(auth, (user) => {
+    // Optional: show a small banner if not signed in
+    if (!user) console.log('Not signed in'); else console.log('Signed in:', user.email);
+  });
+</script>
+
+
 <body>
   <div class="container">
     <header class="app-title">
