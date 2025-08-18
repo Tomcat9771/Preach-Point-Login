@@ -87,7 +87,6 @@ app.get('/api/debug/env', (_req, res) => {
   });
 });
 
-// ---- DEBUG: dry run subscribe (no PayFast redirect, no Firestore) ----
 app.get('/api/debug/subscribe-dry-run', (req, res) => {
   try {
     const isLive = process.env.PAYFAST_MODE === 'live';
@@ -95,9 +94,9 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
 
-    const tidy = (x) => (x == null ? '' : String(x).trim());
+    const tidy  = (x) => (x == null ? '' : String(x).trim());
     const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
-    const mPaymentId = 'debug_' + Math.random().toString(36).slice(2,10);
+    const mPaymentId = 'debug_' + Math.random().toString(36).slice(2, 10);
 
     const fields = {
       merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
@@ -118,18 +117,19 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
       custom_str1: 'debug-uid'
     };
 
-    const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+    const paramStr  = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
     const signature = md5Hex(paramStr);
 
-    res.json({ target, fields, signature, note: 'This is a dry run. No Firestore writes, no redirect.' });
+    return res.json({
+      target, fields, signature,
+      note: 'This is a dry run. No Firestore writes, no redirect.'
+    });
   } catch (e) {
     console.error('dry-run error:', e);
-    res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: String(e) });
   }
 });
-    // IMPORTANT: passphrase ONLY in LIVE
-const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
-const signature = md5Hex(paramStr);
+
 //*******************************************************************
 console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
 console.log('PF target:', target);
@@ -158,15 +158,10 @@ function encodeFormComponent(str) {
   return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
-// Build the PayFast parameter string in a consistent order.
-// IMPORTANT: The param string for hashing MUST include your passphrase at the end (if set).
-// Build k=v pairs in strict alphabetical order, trim values, skip empties.
-// Append passphrase only if provided (LIVE).
+// Build k=v pairs in alphabetical key order, trim values, skip empties.
+// Append passphrase ONLY if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
-  // 1) Alphabetical by key
   const keys = Object.keys(fields).sort();
-
-  // 2) Trim and skip empty values
   const pairs = [];
   for (const k of keys) {
     const v = fields[k];
@@ -175,15 +170,9 @@ function buildPfParamString(fields, passphrase) {
     if (s === '') continue;
     pairs.push(`${k}=${encodeFormComponent(s)}`);
   }
-
-
-  let paramStr = pairs.join('&');
-
-  // 3) Append passphrase ONLY if provided (LIVE)
   if (passphrase && String(passphrase).trim().length > 0) {
     pairs.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
   }
-
   return pairs.join('&');
 }
 
@@ -403,84 +392,64 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
   try {
+    if (!db) return res.status(500).json({ error: 'Server auth not initialized' });
+
     const isLive = process.env.PAYFAST_MODE === 'live';
-const target = isLive
-  ? 'https://www.payfast.co.za/eng/process'
-  : 'https://sandbox.payfast.co.za/eng/process';
 
-    // ENV CHECK — require passphrase only in LIVE mode
-    const requiredEnvVars = [
-      'PAYFAST_MODE',
-      'PAYFAST_MERCHANT_ID',
-      'PAYFAST_MERCHANT_KEY',
-      'PAYFAST_RETURN_URL',
-      'PAYFAST_CANCEL_URL',
-      'PAYFAST_NOTIFY_URL',
-      'SUBSCRIPTION_AMOUNT',
-      'SUBSCRIPTION_ITEM',
+    // Env checks — require passphrase ONLY in live
+    const required = [
+      'PAYFAST_MODE','PAYFAST_MERCHANT_ID','PAYFAST_MERCHANT_KEY',
+      'PAYFAST_RETURN_URL','PAYFAST_CANCEL_URL','PAYFAST_NOTIFY_URL',
+      'SUBSCRIPTION_AMOUNT','SUBSCRIPTION_ITEM'
     ];
-    if (isLive) requiredEnvVars.push('PAYFAST_PASSPHRASE');
+    if (isLive) required.push('PAYFAST_PASSPHRASE');
 
-    console.log('🔍 Checking PayFast environment variables:');
-    const missingVars = [];
-    for (const key of requiredEnvVars) {
-      if (!process.env[key]) {
-        console.warn(`⚠️ MISSING: ${key}`);
-        missingVars.push(key);
-      } else {
-        console.log(`✅ ${key} = ${key.includes('KEY') ? '[masked]' : process.env[key]}`);
-      }
-    }
-    if (missingVars.length > 0) {
-      return res.status(400).json({
-        error: 'Missing required PayFast environment variables',
-        missing: missingVars
-      });
+    const missing = required.filter(k => !process.env[k]);
+    if (missing.length) {
+      console.error('Missing PayFast env:', missing);
+      return res.status(400).json({ error: 'Missing required PayFast environment variables', missing });
     }
 
-    // Choose target based on mode
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
 
-    // Create a Firestore doc to track this subscription
-    //const subRef = db.collection('subscriptions').doc();
-    //const mPaymentId = subRef.id;
-
-    // Price as "99.00"
+    const tidy  = x => (x == null ? '' : String(x).trim());
     const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
 
-    // Build fields
+    // Create Firestore doc and use its ID for m_payment_id
+    const subRef = db.collection('subscriptions').doc();
+    const mPaymentId = subRef.id;
+
     const fields = {
-  merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
-  merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
-  return_url:    tidy(process.env.PAYFAST_RETURN_URL),
-  cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
-  notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
+      merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
+      merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+      return_url:    tidy(process.env.PAYFAST_RETURN_URL),
+      cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
+      notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
 
-  m_payment_id:  mPaymentId,
-  amount:        price,
-  item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
+      m_payment_id:  mPaymentId,
+      amount:        price,
+      item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
 
-  // Recurring subscription
-  subscription_type: 1,
-  // billing_date: '',                // omit; helper skips empties
-  recurring_amount: price,
-  frequency: 3,
-  cycles: 0,
+      // Recurring
+      subscription_type: 1,
+      recurring_amount:  price,
+      frequency: 3,
+      cycles: 0,
 
-  // Link back to the Firebase user
-  custom_str1: req.user.uid,
-};
+      // Link back to Firebase user
+      custom_str1: req.user.uid
+    };
 
-// Signature: include passphrase ONLY in LIVE
-const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
-const signature = md5Hex(paramStr);
+    // SIGN: passphrase ONLY in LIVE
+    const paramStr  = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+    const signature = md5Hex(paramStr);
 
-console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
-console.log('PF target:', target);
-console.log('PF sign paramStr:', paramStr);
-console.log('PF signature:', signature);
+    console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
+    console.log('PF target:', target);
+    console.log('PF sign paramStr:', paramStr);
+    console.log('PF signature:', signature);
 
     await subRef.set({
       uid: req.user.uid,
@@ -490,21 +459,20 @@ console.log('PF signature:', signature);
     });
 
     const inputs = Object.entries({ ...fields, signature })
-      .map(([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}"/>`)
+      .map(([k, v]) => `<input type="hidden" name="${k}" value="${String(v)}" />`)
       .join('');
 
-    res.set('Content-Type', 'text/html').send(`<!doctype html>
+    return res
+      .set('Content-Type','text/html')
+      .send(`<!doctype html>
 <html><body onload="document.forms[0].submit()">
-  <form action="${target}" method="post">
-    ${inputs}
-  </form>
+  <form action="${target}" method="post">${inputs}</form>
   <p>Redirecting to PayFast…</p>
 </body></html>`);
   } catch (err) {
     console.error('subscribe error:', err);
-    res.status(500).json({ error: 'Could not start subscription' });
+    return res.status(500).json({ error: 'Could not start subscription' });
   }
-});
 
 //------------------------------------------------------------------------------
 async function validateWithPayFast(paramStrNoPassphrase) {
@@ -548,23 +516,19 @@ app.post('/api/payfast/itn', async (req, res) => {
     }
 
     // 3) Extract key fields
-    const uid = payload.custom_str1;
-    const mPaymentId = payload.m_payment_id;
-    const paymentStatus = payload.payment_status;           // e.g., COMPLETE / FAILED / CANCELLED
-    const subscriptionStatus = payload.subscription_status; // e.g., ACTIVE / CANCELLED (varies by event)
+const uid = payload.custom_str1;
+const mPaymentId = payload.m_payment_id;
+const paymentStatus = payload.payment_status;
+const subscriptionStatus = payload.subscription_status;
 
-const tidy = (x) => (x == null ? '' : String(x).trim());
-const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
-
-    // 4) Update Firestore subscription doc
-    const subRef = db.collection('subscriptions').doc(mPaymentId);
-const mPaymentId = subRef.id;
-    await subRef.set({
-      uid,
-      status: (subscriptionStatus || paymentStatus || 'unknown').toLowerCase(),
-      lastItn: payload,
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+// 4) Update Firestore subscription doc — use the ID from the payload
+const subRef = db.collection('subscriptions').doc(mPaymentId);
+await subRef.set({
+  uid,
+  status: (subscriptionStatus || paymentStatus || 'unknown').toLowerCase(),
+  lastItn: payload,
+  updatedAt: FieldValue.serverTimestamp()
+}, { merge: true });
 
     // 5) Flip custom claim
     if ((subscriptionStatus === 'ACTIVE') || (paymentStatus === 'COMPLETE')) {
