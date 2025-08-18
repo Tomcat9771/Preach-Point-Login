@@ -153,7 +153,6 @@ function buildPfParamString(fields, passphrase) {
   return parts.join('&');
 }
 
-import crypto from 'crypto';
 function md5Hex(s) {
   return crypto.createHash('md5').update(s, 'utf8').digest('hex');
 }
