@@ -99,24 +99,37 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
     const mPaymentId = 'debug_' + Math.random().toString(36).slice(2,10);
 
     const fields = {
-      merchant_id:  process.env.PAYFAST_MERCHANT_ID,
-      merchant_key: process.env.PAYFAST_MERCHANT_KEY,
-      return_url:   process.env.PAYFAST_RETURN_URL,
-      cancel_url:   process.env.PAYFAST_CANCEL_URL,
-      notify_url:   process.env.PAYFAST_NOTIFY_URL,
-      m_payment_id: mPaymentId,
-      amount:       process.env.SUBSCRIPTION_AMOUNT,
-      item_name:    process.env.SUBSCRIPTION_ITEM,
-      subscription_type: 1,
-      billing_date: '',
-      recurring_amount: process.env.SUBSCRIPTION_AMOUNT,
-      frequency: 3,
-      cycles: 0,
-      custom_str1: 'debug-uid'
-    };
+  merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
+  merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+  return_url:    tidy(process.env.PAYFAST_RETURN_URL),
+  cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
+  notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
 
-    const paramStr = buildPfParamString(fields, process.env.PAYFAST_PASSPHRASE);
-    const signature = md5Hex(paramStr);
+  m_payment_id:  mPaymentId,
+  amount:        price,
+  item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
+
+  // Recurring subscription fields
+  subscription_type: 1,       // 1 = subscription
+  billing_date: '',           // omit if empty (helper skips '')
+  recurring_amount: price,
+  frequency: 3,               // 3 = monthly
+  cycles: 0,                  // 0 = indefinite
+
+  // Custom data (safe)
+  custom_str1: req.user.uid
+};
+
+    // IMPORTANT: passphrase ONLY in LIVE
+const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+const signature = md5Hex(paramStr);
+//*******************************************************************
+console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
+console.log('PF target:', target);
+console.log('PF fields (pre-post):', fields);
+console.log('PF sign paramStr:', paramStr);
+console.log('PF signature:', signature);
+//*******************************************************************
 
     res.json({
       target,
@@ -134,31 +147,29 @@ app.get('/api/debug/subscribe-dry-run', (req, res) => {
 //----------------------------------------------------------------------------------
 
 function encodeRFC3986(str) {
-  return encodeURIComponent(str).replace(/[!'()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
+    '%' + c.charCodeAt(0).toString(16).toUpperCase()
+  );
 }
 
 // Build the PayFast parameter string in a consistent order.
 // IMPORTANT: The param string for hashing MUST include your passphrase at the end (if set).
+// Build k=v pairs in strict alphabetical order, trim values, skip empties.
+// Append passphrase only if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
-  // Order keys deterministically
-  const orderedKeys = [
-    'merchant_id','merchant_key','return_url','cancel_url','notify_url',
-    'm_payment_id','amount','item_name',
-    // Recurring
-    'subscription_type','billing_date','recurring_amount','frequency','cycles',
-    // Custom
-    'custom_str1'
-  ];
-
   const pairs = [];
-  for (const k of orderedKeys) {
-    if (fields[k] !== undefined && fields[k] !== null && fields[k] !== '') {
-      pairs.push(`${k}=${encodeRFC3986(String(fields[k]))}`);
-    }
-  }
+  Object.keys(fields).sort().forEach((k) => {
+    const v = fields[k];
+    if (v === undefined || v === null) return;
+    const s = String(v).trim();
+    if (s === '') return;                        // PayFast: skip empty values
+    pairs.push(`${k}=${encodeRFC3986(s)}`);
+  });
+
   let paramStr = pairs.join('&');
-  if (passphrase) {
-    paramStr += `&passphrase=${encodeRFC3986(passphrase)}`;
+
+  if (passphrase && String(passphrase).trim().length > 0) {
+    paramStr += `&passphrase=${encodeRFC3986(String(passphrase).trim())}`;
   }
   return paramStr;
 }
@@ -380,6 +391,10 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
   try {
     const isLive = process.env.PAYFAST_MODE === 'live';
+const target = isLive
+  ? 'https://www.payfast.co.za/eng/process'
+  : 'https://sandbox.payfast.co.za/eng/process';
+
 
     // ENV CHECK — require passphrase only in LIVE mode
     const requiredEnvVars = [
@@ -532,8 +547,11 @@ app.post('/api/payfast/itn', async (req, res) => {
     const paymentStatus = payload.payment_status;           // e.g., COMPLETE / FAILED / CANCELLED
     const subscriptionStatus = payload.subscription_status; // e.g., ACTIVE / CANCELLED (varies by event)
 
+const tidy = (x) => (x == null ? '' : String(x).trim());
+
     // 4) Update Firestore subscription doc
-    const subRef = db.collection('subscriptions').doc(mPaymentId);
+    const subRef = db.collection('subscriptions').doc();
+const mPaymentId = subRef.id;
     await subRef.set({
       uid,
       status: (subscriptionStatus || paymentStatus || 'unknown').toLowerCase(),
