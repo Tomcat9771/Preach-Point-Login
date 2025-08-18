@@ -138,25 +138,82 @@ function encodeRFC3986(str) {
     '%' + c.charCodeAt(0).toString(16).toUpperCase()
   );
 }
+//***********************************************************************************
+// Official-ish field order used by PayFast when constructing the hash
+const PF_FIELD_ORDER = [
+  // Merchant Details
+  "merchant_id",
+  "merchant_key",
+  "return_url",
+  "cancel_url",
+  "notify_url",
+  // Buyer Detail (optional)
+  "name_first",
+  "name_last",
+  "email_address",
+  "cell_number",
+  // Transaction Details
+  "m_payment_id",
+  "amount",
+  "item_name",
+  "item_description",
+  "custom_int1",
+  "custom_int2",
+  "custom_int3",
+  "custom_int4",
+  "custom_int5",
+  "custom_str1",
+  "custom_str2",
+  "custom_str3",
+  "custom_str4",
+  "custom_str5",
+  // Transaction Options (optional)
+  "email_confirmation",
+  "confirmation_address",
+  // Set Payment Method (optional)
+  "payment_method",
+  // Recurring Billing Details
+  "subscription_type",
+  "billing_date",
+  "recurring_amount",
+  "frequency",
+  "cycles",
+];
 
-// Build k=v pairs in alphabetical order, trim values, skip empties.
-// Append passphrase ONLY in LIVE mode.
+// RFC 3986 (rawurlencode) — spaces -> %20
+function encodeRFC3986(str) {
+  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
+    '%' + c.charCodeAt(0).toString(16).toUpperCase()
+  );
+}
+
+// Build param string in PayFast’s order; trim values; skip empties.
+// Append passphrase ONLY in LIVE.
 function buildPfParamString(fields, passphrase) {
-  const keys = Object.keys(fields).sort(); // alphabetical
+  const tidy = v => (v == null ? '' : String(v).trim());
   const parts = [];
-  for (const k of keys) {
-    const v = fields[k];
-    if (v === undefined || v === null) continue;
-    const s = String(v).trim();
-    if (s === '') continue; // skip empty values
-    parts.push(`${k}=${encodeRFC3986(s)}`);
+
+  // 1) Known fields in required order
+  for (const key of PF_FIELD_ORDER) {
+    const val = tidy(fields[key]);
+    if (val !== '') parts.push(`${key}=${encodeRFC3986(val)}`);
   }
-  if (passphrase && String(passphrase).trim().length > 0) {
+
+  // 2) Any extra fields (if any) in alphabetical order
+  const known = new Set(PF_FIELD_ORDER);
+  const extras = Object.keys(fields).filter(k => !known.has(k)).sort();
+  for (const k of extras) {
+    const val = tidy(fields[k]);
+    if (val !== '') parts.push(`${k}=${encodeRFC3986(val)}`);
+  }
+
+  // 3) Passphrase (LIVE only)
+  if (passphrase && String(passphrase).trim()) {
     parts.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
   }
   return parts.join('&');
 }
-
+//*********************************************************************************
 function md5Hex(s) {
   return crypto.createHash('md5').update(s, 'utf8').digest('hex');
 }
