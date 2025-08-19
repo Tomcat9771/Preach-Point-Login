@@ -121,6 +121,8 @@ console.log('PF sign paramStr:', paramStr);
     };
 
     const paramStr  = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : null);
+// ✅ INSERT THIS LINE RIGHT HERE:
+    console.log('PF sign paramStr:', paramStr);
     const signature = md5Hex(paramStr);
 
     return res.json({
