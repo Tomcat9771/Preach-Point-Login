@@ -136,21 +136,17 @@ res.set('Access-Control-Allow-Origin', '*'); // 👈 CORS fix
 
 //----------------------------------------------------------------------------------
 
-//***********************************************************************************
-// Official-ish field order used by PayFast when constructing the hash
+// ⚠️ From PayFast docs – maintain this order strictly
 const PF_FIELD_ORDER = [
-  // Merchant Details
   "merchant_id",
   "merchant_key",
   "return_url",
   "cancel_url",
   "notify_url",
-  // Buyer Detail (optional)
   "name_first",
   "name_last",
   "email_address",
   "cell_number",
-  // Transaction Details
   "m_payment_id",
   "amount",
   "item_name",
@@ -165,12 +161,9 @@ const PF_FIELD_ORDER = [
   "custom_str3",
   "custom_str4",
   "custom_str5",
-  // Transaction Options (optional)
   "email_confirmation",
   "confirmation_address",
-  // Set Payment Method (optional)
   "payment_method",
-  // Recurring Billing Details
   "subscription_type",
   "billing_date",
   "recurring_amount",
@@ -178,31 +171,45 @@ const PF_FIELD_ORDER = [
   "cycles",
 ];
 
-// ===== PayFast signature helpers (place once, above routes) =====
-
-
-// application/x-www-form-urlencoded component: spaces -> '+'
+// Replaces spaces with `+` after URL encoding
 function encodeFormComponent(str) {
   return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
-// Build param string in **alphabetical key order**, trim values, skip empties.
-// Append passphrase ONLY if provided (LIVE).
-function buildPfParamString(fields, passphrase) {
-  const orderedKeys = PF_FIELD_ORDER.filter(k => fields[k] !== undefined && fields[k] !== null && String(fields[k]).trim() !== '');
-  const parts = orderedKeys.map(k => `${k}=${encodeFormComponent(String(fields[k]).trim())}`);
+// Core: Builds the signature string (paramStr)
+function buildPfParamString(fields, passphrase = "") {
+  const parts = [];
 
-  if (passphrase && String(passphrase).trim()) {
-    parts.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
+  for (const key of PF_FIELD_ORDER) {
+    const rawVal = fields[key];
+
+    if (rawVal === undefined || rawVal === null) continue;
+
+    const val = String(rawVal).trim();
+    if (val === "") continue;
+
+    parts.push(`${key}=${encodeFormComponent(val)}`);
   }
 
-  return parts.join('&');
+  if (passphrase && String(passphrase).trim()) {
+    parts.push(`passphrase=${encodeFormComponent(passphrase.trim())}`);
+  }
+
+  return parts.join("&");
 }
 
-function md5Hex(s) {
-  return crypto.createHash('md5').update(s, 'utf8').digest('hex');
+// Returns MD5 hash
+function generateSignature(fields, passphrase = "") {
+  const paramStr = buildPfParamString(fields, passphrase);
+  console.log("💡 Param string:", paramStr);
+
+  return crypto.createHash("md5").update(paramStr, "utf8").digest("hex");
 }
-// ===============================================================
+
+module.exports = {
+  buildPfParamString,
+  generateSignature
+};
 
 //--------------------------------------------------------------------------------
 
