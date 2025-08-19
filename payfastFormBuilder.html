@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>PayFast Form Builder</title>
+</head>
+<body>
+  <h1>PayFast Form Generator</h1>
+  <button onclick="generateForm()">Generate Signed Form</button>
+  <pre id="output" style="margin-top:20px; padding:10px; background:#f0f0f0;"></pre>
+  <script>
+    async function generateForm() {
+      const res = await fetch('https://preach-point-login.vercel.app/api/debug/subscribe-dry-run');
+      const { fields, signature, target } = await res.json();
+
+      fields.signature = signature;
+
+      const encode = str =>
+        encodeURIComponent(String(str).trim()).replace(/%20/g, '+');
+
+      const formInputs = Object.entries(fields).map(([k, v]) => {
+        const val = k === "item_name" ? encode(v) : v;
+        return `    <input type="hidden" name="${k}" value="${val}" />`;
+      }).join("\n");
+
+      const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>PayFast Auto Form</title></head>
+<body>
+  <form action="${target}" method="post">
+${formInputs}
+    <input type="submit" value="Test PayFast" />
+  </form>
+</body>
+</html>`;
+
+      document.getElementById('output').textContent = html;
+    }
+  </script>
+</body>
+</html>
