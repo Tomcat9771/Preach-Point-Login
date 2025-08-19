@@ -3,12 +3,13 @@
 
 // ─── Imports ───────────────────────────────────────────────────────────────────
 import express from 'express';
+import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import OpenAI from 'openai';
 import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
-import crypto from 'crypto';
+
 
 // Firebase Admin (modular)
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
@@ -174,14 +175,14 @@ const PF_FIELD_ORDER = [
   "cycles",
 ];
 
-// RFC 3986 (rawurlencode) — spaces -> %20
-function encodeRFC3986(str) {
-  return encodeURIComponent(str).replace(/[!'()*]/g, c =>
-    '%' + c.charCodeAt(0).toString(16).toUpperCase()
-  );
+// ---- PayFast signature helpers (alphabetical + form-style encoding) ----
+
+// application/x-www-form-urlencoded component: spaces -> '+'
+function encodeFormComponent(str) {
+  return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
-// Build param string in **alphabetical key order**, trim values, skip empties.
+// Build param string in **alphabetical key order**, trim, skip empties.
 // Append passphrase ONLY if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
   const keys = Object.keys(fields).sort();  // alphabetical
@@ -190,17 +191,13 @@ function buildPfParamString(fields, passphrase) {
     const v = fields[k];
     if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') continue;                 // skip empties
-    parts.push(`${k}=${encodeRFC3986(s)}`);
+    if (s === '') continue;
+    parts.push(`${k}=${encodeFormComponent(s)}`);
   }
   if (passphrase && String(passphrase).trim()) {
-    parts.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
+    parts.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
   }
   return parts.join('&');
-}
-//*********************************************************************************
-function md5Hex(s) {
-  return crypto.createHash('md5').update(s, 'utf8').digest('hex');
 }
 //--------------------------------------------------------------------------------
 
