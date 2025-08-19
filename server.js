@@ -175,14 +175,15 @@ const PF_FIELD_ORDER = [
   "cycles",
 ];
 
-// ---- PayFast signature helpers (alphabetical + form-style encoding) ----
+// ===== PayFast signature helpers (place once, above routes) =====
+
 
 // application/x-www-form-urlencoded component: spaces -> '+'
 function encodeFormComponent(str) {
   return encodeURIComponent(str).replace(/%20/g, '+');
 }
 
-// Build param string in **alphabetical key order**, trim, skip empties.
+// Build param string in **alphabetical key order**, trim values, skip empties.
 // Append passphrase ONLY if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
   const keys = Object.keys(fields).sort();  // alphabetical
@@ -191,7 +192,7 @@ function buildPfParamString(fields, passphrase) {
     const v = fields[k];
     if (v === undefined || v === null) continue;
     const s = String(v).trim();
-    if (s === '') continue;
+    if (s === '') continue;                 // skip empties
     parts.push(`${k}=${encodeFormComponent(s)}`);
   }
   if (passphrase && String(passphrase).trim()) {
@@ -199,6 +200,12 @@ function buildPfParamString(fields, passphrase) {
   }
   return parts.join('&');
 }
+
+function md5Hex(s) {
+  return crypto.createHash('md5').update(s, 'utf8').digest('hex');
+}
+// ===============================================================
+
 //--------------------------------------------------------------------------------
 
 // ─── 2️⃣ Load kjv.json once at startup ──────────────────────────────────────────
