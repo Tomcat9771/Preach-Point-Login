@@ -189,18 +189,13 @@ function encodeFormComponent(str) {
 // Build param string in **alphabetical key order**, trim values, skip empties.
 // Append passphrase ONLY if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
-  const keys = Object.keys(fields).sort();  // alphabetical
-  const parts = [];
-  for (const k of keys) {
-    const v = fields[k];
-    if (v === undefined || v === null) continue;
-    const s = String(v).trim();
-    if (s === '') continue;                 // skip empties
-    parts.push(`${k}=${encodeFormComponent(s)}`);
-  }
+  const orderedKeys = PF_FIELD_ORDER.filter(k => fields[k] !== undefined && fields[k] !== null && String(fields[k]).trim() !== '');
+  const parts = orderedKeys.map(k => `${k}=${encodeFormComponent(String(fields[k]).trim())}`);
+
   if (passphrase && String(passphrase).trim()) {
     parts.push(`passphrase=${encodeFormComponent(String(passphrase).trim())}`);
   }
+
   return parts.join('&');
 }
 
