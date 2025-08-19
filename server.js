@@ -346,6 +346,8 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 //-------------------------------------------------------------------------------
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
+res.send("✅ PayFast subscription endpoint is live. Use POST to submit subscription form.");
+});
   try {
     if (!db) return res.status(500).json({ error: 'Server auth not initialized' });
 
