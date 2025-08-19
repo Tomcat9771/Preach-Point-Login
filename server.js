@@ -181,27 +181,18 @@ function encodeRFC3986(str) {
   );
 }
 
-// Build param string in PayFast’s order; trim values; skip empties.
-// Append passphrase ONLY in LIVE.
+// Build param string in **alphabetical key order**, trim values, skip empties.
+// Append passphrase ONLY if provided (LIVE).
 function buildPfParamString(fields, passphrase) {
-  const tidy = v => (v == null ? '' : String(v).trim());
+  const keys = Object.keys(fields).sort();  // alphabetical
   const parts = [];
-
-  // 1) Known fields in required order
-  for (const key of PF_FIELD_ORDER) {
-    const val = tidy(fields[key]);
-    if (val !== '') parts.push(`${key}=${encodeRFC3986(val)}`);
+  for (const k of keys) {
+    const v = fields[k];
+    if (v === undefined || v === null) continue;
+    const s = String(v).trim();
+    if (s === '') continue;                 // skip empties
+    parts.push(`${k}=${encodeRFC3986(s)}`);
   }
-
-  // 2) Any extra fields (if any) in alphabetical order
-  const known = new Set(PF_FIELD_ORDER);
-  const extras = Object.keys(fields).filter(k => !known.has(k)).sort();
-  for (const k of extras) {
-    const val = tidy(fields[k]);
-    if (val !== '') parts.push(`${k}=${encodeRFC3986(val)}`);
-  }
-
-  // 3) Passphrase (LIVE only)
   if (passphrase && String(passphrase).trim()) {
     parts.push(`passphrase=${encodeRFC3986(String(passphrase).trim())}`);
   }
