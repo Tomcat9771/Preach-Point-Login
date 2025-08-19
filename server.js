@@ -90,6 +90,7 @@ app.get('/api/debug/env', (_req, res) => {
 
 app.get('/api/debug/subscribe-dry-run', (req, res) => {
 res.set('Access-Control-Allow-Origin', '*'); // 👈 CORS fix
+console.log('PF sign paramStr:', paramStr);
   try {
     const isLive = process.env.PAYFAST_MODE === 'live';
     const target = isLive
