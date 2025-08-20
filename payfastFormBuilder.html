@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>PayFast Auto Form</title></head>
+<head>
+  <meta charset="UTF-8">
+  <title>PayFast Sandbox Subscription Form</title>
+</head>
 <body>
   <form action="https://sandbox.payfast.co.za/eng/process" method="post">
     <input type="hidden" name="merchant_id" value="10000100" />
@@ -8,16 +11,18 @@
     <input type="hidden" name="return_url" value="https://www.shieldsconsulting.co.za/subscribe/success" />
     <input type="hidden" name="cancel_url" value="https://www.shieldsconsulting.co.za/subscribe/cancel" />
     <input type="hidden" name="notify_url" value="https://preach-point-login.vercel.app/api/payfast/itn" />
-    <input type="hidden" name="m_payment_id" value="debug_hjsboicw" />
+    <input type="hidden" name="name_first" value="Sandbox" />
+    <input type="hidden" name="email_address" value="test@example.com" />
+    <input type="hidden" name="m_payment_id" value="debug_formtest_001" />
     <input type="hidden" name="amount" value="99.00" />
-    <input type="hidden" name="item_name" value="Preach+Point+Monthly" />
+    <input type="hidden" name="item_name" value="Preach Point Monthly" />
     <input type="hidden" name="subscription_type" value="1" />
     <input type="hidden" name="recurring_amount" value="99.00" />
     <input type="hidden" name="frequency" value="3" />
     <input type="hidden" name="cycles" value="0" />
-    <input type="hidden" name="custom_str1" value="debug-uid" />
-    <input type="hidden" name="signature" value="2542acbaf050d1115bfce036fae0a97b" />
-    <input type="submit" value="Test PayFast" />
+    <input type="hidden" name="custom_str1" value="sandbox-debug-user" />
+    <input type="hidden" name="signature" value="a56bad7b24d4bca4160d394e22f4857c" />
+    <input type="submit" value="Test PayFast Sandbox" />
   </form>
 </body>
 </html>
