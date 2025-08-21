@@ -1,0 +1,4 @@
+🧾 Param String: merchant_id=10041319&merchant_key=26zrknv5myxxx&return_url=https://www.shieldsconsulting.co.za/subscribe/success&cancel_url=https://www.shieldsconsulting.co.za/subscribe/cancel&notify_url=https://preach-point-login.vercel.app/api/payfast/itn&m_payment_id=sub_001&amount=99.00&item_name=Preach+Point+Monthly&subscription_type=1&billing_date=2025-08-30&recurring_amount=99.00&frequency=3&cycles=0
+🔐 Signature   : 37caedf6d2e26628fecb430a785200c1
+📄 Wrote       : C:\Users\tshie\backend\NewPreachPointGPT5\sandbox-subscribe.html
+✔️  HTML URLs clean and signature matches.

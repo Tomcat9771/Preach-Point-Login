@@ -8,7 +8,7 @@ import path from 'path';
 import OpenAI from 'openai';
 import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
-import { generateSignature } from './buildPfParamString.mjs';
+import { buildPfParamString, generateSignature, md5Hex } from './buildPfParamString.mjs';
 
 
 // Firebase Admin (modular)
@@ -346,11 +346,13 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 //-------------------------------------------------------------------------------
 
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
-res.send("✅ PayFast subscription endpoint is live. Use POST to submit subscription form.");
   try {
     if (!db) return res.status(500).json({ error: 'Server auth not initialized' });
 
-    const isLive = process.env.PAYFAST_MODE === 'live';
+    const isLive = (process.env.PAYFAST_MODE || 'sandbox').toLowerCase() === 'live';
+    const target = isLive
+      ? 'https://www.payfast.co.za/eng/process'
+      : 'https://sandbox.payfast.co.za/eng/process';
 
     // Env checks — require passphrase ONLY in LIVE
     const required = [
@@ -366,44 +368,50 @@ res.send("✅ PayFast subscription endpoint is live. Use POST to submit subscrip
       return res.status(400).json({ error: 'Missing required PayFast environment variables', missing });
     }
 
-    const target = isLive
-      ? 'https://www.payfast.co.za/eng/process'
-      : 'https://sandbox.payfast.co.za/eng/process';
+    const tidy = x => (x == null ? '' : String(x).trim());
+    const price = Number(process.env.SUBSCRIPTION_AMOUNT).toFixed(2);
 
-    const tidy  = x => (x == null ? '' : String(x).trim());
-    const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
-
-    // Create Firestore doc and use its ID for m_payment_id
+    // Use a Firestore doc ID for m_payment_id so ITN can map back exactly.
     const subRef = db.collection('subscriptions').doc();
     const mPaymentId = subRef.id;
 
+    // Build the exact field set we will SIGN and POST (keep in strict order when hashing)
     const fields = {
       merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
       merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+
+      // redirects / ITN (sanitize/trims already)
       return_url:    tidy(process.env.PAYFAST_RETURN_URL),
       cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
       notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
 
+      // transaction
       m_payment_id:  mPaymentId,
       amount:        price,
       item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
 
-      // Recurring
+      // recurring
       subscription_type: 1,
+      billing_date:      tidy(req.body?.billing_date || ''), // optional override from UI; blank means “start now” in PF
       recurring_amount:  price,
-      frequency: 3,
-      cycles: 0,
+      frequency:         3,         // 3 = monthly
+      cycles:            0,         // 0 = indefinite
 
-      // Link back to Firebase user
+      // link user back in ITN
       custom_str1: req.user.uid
     };
 
-    // SIGN: passphrase ONLY in LIVE (buildPfParamString must use form-style encoding with + for spaces)
+    // SIGN (spaces => '+', no URL encoding). Passphrase ONLY in LIVE.
+    const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : '');
+    const signature = md5Hex(paramStr);
+
+    // (Optional) helpful logs
     console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
     console.log('PF target:', target);
     console.log('PF sign paramStr:', paramStr);
     console.log('PF signature:', signature);
 
+    // Record a pending sub for this user (so you can show UI state)
     await subRef.set({
       uid: req.user.uid,
       status: 'pending',
@@ -411,29 +419,28 @@ res.send("✅ PayFast subscription endpoint is live. Use POST to submit subscrip
       createdAt: FieldValue.serverTimestamp()
     });
 
-    // HTML-escape values so the browser posts exactly what we signed
+    // HTML-escape attributes to match exactly what we signed
     const escapeHtmlAttr = (s) =>
-      String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+      String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     const inputs = Object.entries({ ...fields, signature })
       .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}" />`)
-      .join('');
+      .join('\n    ');
 
-    // (Optional) one-time debug to compare what we post vs what we signed
-    console.log('PF form inputs posted:', Object.fromEntries(Object.entries({ ...fields, signature }).map(([k,v]) => [k, String(v)])));
-
+    // Return an auto-submitting HTML form (your login.html opens this in a new tab)
     return res
-      .set('Content-Type','text/html')
+      .set('Content-Type','text/html; charset=utf-8')
+      .status(200)
       .send(`<!doctype html>
-<html><body onload="document.forms[0].submit()">
+<html><head><meta charset="utf-8"><title>Redirecting…</title></head>
+<body onload="document.forms[0].submit()">
+  <!-- DEBUG:
+       ${paramStr}
+       signature=${signature} -->
   <form action="${target}" method="post">
     ${inputs}
   </form>
-  <p>Redirecting to PayFast…</p>
+  <noscript><button type="submit">Continue to PayFast</button></noscript>
 </body></html>`);
   } catch (err) {
     console.error('subscribe error:', err);
