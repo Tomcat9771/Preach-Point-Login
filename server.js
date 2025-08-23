@@ -1,6 +1,4 @@
 // server.js
-// server.js
-
 // ─── Imports ───────────────────────────────────────────────────────────────────
 import express from 'express';
 import fs from 'fs/promises';
@@ -8,38 +6,116 @@ import path from 'path';
 import OpenAI from 'openai';
 import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+
 import { buildPfParamString, generateSignature, md5Hex } from './buildPfParamString.mjs';
 
-
-// Firebase Admin (modular)
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 dotenv.config();
 
-// ─── App setup (create app ONCE, before any app.use/routes) ────────────────────
+// ─── Firebase Admin bootstrap (resilient, single init) ────────────────────────
+async function loadServiceAccount() {
+  const b64 =
+    (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 && process.env.FIREBASE_SERVICE_ACCOUNT_BASE64.trim()) ||
+    (process.env.SERVICE_ACCOUNT_BASE64 && process.env.SERVICE_ACCOUNT_BASE64.trim());
+  const jsonPath = process.env.SERVICE_ACCOUNT_JSON && process.env.SERVICE_ACCOUNT_JSON.trim();
+
+  if (b64) {
+    try {
+      const raw = Buffer.from(b64, 'base64').toString('utf8');
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('❌ Failed to decode *_SERVICE_ACCOUNT_BASE64:', e.message);
+    }
+  }
+
+  if (jsonPath) {
+    try {
+      const raw = await fs.readFile(jsonPath, 'utf8');
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error(`❌ Failed to read SERVICE_ACCOUNT_JSON at ${jsonPath}:`, e.message);
+    }
+  }
+
+  return null; // allow server to run without admin (local dev)
+}
+
+let auth = null;
+let db   = null;
+
+const sa = await loadServiceAccount();
+if (sa) {
+  try {
+    if (!admin.apps.length) {
+      admin.initializeApp({
+        credential: admin.credential.cert(sa),
+        projectId: process.env.FIREBASE_PROJECT_ID || sa.project_id,
+      });
+    }
+    auth = admin.auth();
+    db   = admin.firestore();
+    console.log('✅ Firebase Admin initialized');
+  } catch (e) {
+    console.error('❌ Firebase Admin init error:', e.message);
+  }
+} else {
+  console.warn('⚠️  No service account provided. Admin-only routes will be limited.');
+}
+
+// ─── App setup (create app ONCE, then middlewares) ────────────────────────────
 const app = express();
+
+// CSP/headers (fixes the “default-src 'none'” font issue locally)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "https://www.gstatic.com", "https://www.googletagmanager.com"],
+      styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:    ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc:     ["'self'", "data:", "https://*"],
+      // 👇 allow Firebase Auth + related endpoints
+      connectSrc: [
+        "'self'",
+        "https://preach-point-login.vercel.app",
+        "https://sandbox.payfast.co.za",
+        "https://identitytoolkit.googleapis.com",
+        "https://securetoken.googleapis.com",
+        "https://www.googleapis.com",
+        "https://firebaseinstallations.googleapis.com",
+        "https://firestore.googleapis.com",
+        "https://*.firebaseio.com"
+      ],
+      frameSrc:   ["https://sandbox.payfast.co.za", "https://www.payfast.co.za"],
+      formAction: ["'self'", "https://sandbox.payfast.co.za", "https://www.payfast.co.za"]
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false })); // PayFast ITN needs this
-app.use(express.static('public'));                // if you serve /public assets
+app.use(express.static('public'));                // serve /public assets
 
-// ─── Firebase Admin init (using base64 service account from env) ──────────────
-const sa = JSON.parse(
-  Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64, 'base64').toString('utf8')
-);
-if (getApps().length === 0) {
-  initializeApp({ credential: cert(sa) });
-}
-const auth = getAuth();
-const db = getFirestore();
+// Convenience routes so /login and / are available (not only /login.html)
+app.get('/login', (_req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'login.html'));
+});
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public', 'index.html'));
+});
 
 // ─── Auth helpers ──────────────────────────────────────────────────────────────
 async function authOptional(req, _res, next) {
   try {
     const hdr = req.headers.authorization || '';
     const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
-    if (token) {
+    // Only verify if Admin Auth exists (local dev may run without service account)
+    if (token && auth) {
       const decoded = await auth.verifyIdToken(token);
       req.user = decoded; // custom claims (e.g. subscriber)
     }
@@ -58,19 +134,14 @@ function requireSubscriber(req, res, next) {
 }
 app.use(authOptional);
 
-// Optional debug route
+// ─── Who am I (requires auth) ─────────────────────────────────────────────────
 app.get('/api/me', requireAuth, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   const { uid, email, subscriber } = req.user || {};
   res.json({ uid, email, subscriber: !!subscriber });
 });
 
-// ── Your other routes continue below…
-
-
-// ── (Your other routes continue below) ───────────────────────────────────────
-// e.g. app.post('/api/commentary', requireAuth, requireSubscriber, async (req,res)=>{...})
-//*******************************************************************************************
-// ---- DEBUG: show masked PayFast/Firebase envs (no secrets) ----
+// ---- DEBUG: show masked PayFast/Firebase envs (no secrets) --------------------
 app.get('/api/debug/env', (_req, res) => {
   const mask = v => (v ? (v.length > 6 ? v.slice(0,3) + '...' + v.slice(-3) : '***') : '(empty)');
   res.json({
@@ -84,14 +155,17 @@ app.get('/api/debug/env', (_req, res) => {
     SUBSCRIPTION_ITEM: process.env.SUBSCRIPTION_ITEM || '(unset)',
     SUBSCRIPTION_AMOUNT: process.env.SUBSCRIPTION_AMOUNT || '(unset)',
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '(unset)',
-    SERVICE_ACCOUNT_BASE64_PRESENT: !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
+    SERVICE_ACCOUNT_BASE64_PRESENT: !!(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.SERVICE_ACCOUNT_BASE64)
   });
 });
 
-app.get('/api/debug/subscribe-dry-run', (req, res) => {
-res.set('Access-Control-Allow-Origin', '*'); // 👈 CORS fix
+// ---- DEBUG: local dry-run to inspect fields, target & signature ---------------
+app.get('/api/debug/subscribe-dry-run', (_req, res) => {
+  // Allow opening this endpoint from a file:// or different origin while testing
+  res.set('Access-Control-Allow-Origin', '*');
   try {
-    const isLive = process.env.PAYFAST_MODE === 'live';
+    const mode   = (process.env.PAYFAST_MODE || 'sandbox').toLowerCase();
+    const isLive = mode === 'live';
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
@@ -101,41 +175,38 @@ res.set('Access-Control-Allow-Origin', '*'); // 👈 CORS fix
     const mPaymentId = 'debug_' + Math.random().toString(36).slice(2, 10);
 
     const fields = {
+      // Merchant details
       merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
       merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
       return_url:    tidy(process.env.PAYFAST_RETURN_URL),
       cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
       notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
-
+      // Transaction
       m_payment_id:  mPaymentId,
       amount:        price,
       item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
-
-      subscription_type: 1,
+      // Recurring
+      subscription_type: 1,    // 1 = subscription
       recurring_amount:  price,
-      frequency: 3,
-      cycles: 0,
-
+      frequency: 3,            // monthly
+      cycles: 0,               // infinite
+      // Custom
       custom_str1: 'debug-uid'
     };
-const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE);
-fields.signature = signature;
 
-      return res.json({
-      target, fields, signature,
-      note: 'This is a dry run. No Firestore writes, no redirect.'
-    });
+    // Sign: passphrase only in LIVE. In sandbox it must be omitted.
+    const signature = generateSignature(fields, isLive ? (process.env.PAYFAST_PASSPHRASE || '') : '');
+    fields.signature = signature;
+
+    res.json({ target, fields, signature, note: 'This is a dry run. No Firestore writes, no redirect.' });
   } catch (e) {
     console.error('dry-run error:', e);
-    return res.status(500).json({ error: String(e) });
+    res.status(500).json({ error: String(e) });
   }
 });
 
-//----------------------------------------------------------------------------------
 
-
-//--------------------------------------------------------------------------------
-
+// ─── (keep your remaining routes below: KJV/AFRI loads, PayFast subscribe, ITN, etc.) ──
 // ─── 2️⃣ Load kjv.json once at startup ──────────────────────────────────────────
 let kjvData = [];
 try {
@@ -523,7 +594,6 @@ await subRef.set({
     return res.status(200).send('OK'); // acknowledge to avoid retries; check logs
   }
 });
-//------------------------------------------------------------------------------
 // ─── 5️⃣ GET /api/chapters ─────────────────────────────────────────────────────
 app.get('/api/chapters', (req, res) => {
   try {
@@ -742,8 +812,6 @@ app.post('/api/prayer', requireAuth, requireSubscriber, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-
 
 // ─── Global error handler ───────────────────────────────────────────────────────
 app.use((err, req, res, next) => {

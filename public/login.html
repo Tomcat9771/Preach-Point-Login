@@ -1,142 +1,105 @@
-<!doctype html>
-<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Preach Point — Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Google Fonts only (no local .ttf requests) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+
   <style>
-    body { font-family: system-ui, Arial, sans-serif; max-width: 560px; margin: 40px auto; padding: 0 16px; }
-    h1 { margin-bottom: 8px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 16px 0; }
-    label { display:block; margin-top:12px; }
-    input { width:100%; padding:10px; border:1px solid #ccc; border-radius:8px; margin-top:6px; }
-    button { padding:10px 14px; border-radius:10px; border:1px solid #222; background:#111; color:#fff; cursor:pointer; margin-top:12px; }
-    button.secondary { background:#fff; color:#111; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; }
-    pre { background:#f7f7f7; padding:12px; border-radius:8px; overflow:auto; }
+    :root{
+      --pp-purple:#641a7a; --pp-deep:#4a0e5e; --pp-accent:#ffcc33;
+      --pp-card:#ffffff; --pp-text:#1a1a1a; --pp-muted:#7a7a7a;
+    }
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0; font-family:"Lato", system-ui, Arial, sans-serif; color:var(--pp-text);
+      background: radial-gradient(1200px 700px at 70% -20%, #7f2b99 0, var(--pp-purple) 35%, #3b0c4e 100%);
+    }
+    .brand-bar{ background:var(--pp-deep); color:#fff; padding:14px 18px;
+      display:flex; align-items:center; gap:14px; justify-content:center;
+      border-bottom:2px solid rgba(255,255,255,.12); }
+    .brand-bar h1{ margin:0; font-size:18px; letter-spacing:.08em; text-transform:uppercase; color:var(--pp-accent); }
+    .logo-wrap{ display:flex; align-items:center; gap:10px; }
+    .logo-wrap img{ height:44px; display:block; }
+    .container{ max-width: 880px; margin: 32px auto 48px; padding: 0 16px; }
+    .hero{ text-align:center; color:#fff; margin-bottom:18px; }
+    .hero-title{ font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--pp-accent); margin:8px 0 6px; font-size:28px; }
+    .hero-sub{ opacity:.9; font-size:14px; }
+    .cards{ display:grid; grid-template-columns: 1fr; gap:16px; }
+    @media (min-width: 880px){ .cards{ grid-template-columns: 1.1fr 0.9fr; } }
+    .card{ background:var(--pp-card); border-radius:14px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.12); border:1px solid rgba(0,0,0,.06); }
+    .card h3{ margin:0 0 10px; font-size:18px; }
+    .muted{ color:var(--pp-muted); font-size:13px; }
+    label{ display:block; font-size:14px; margin-top:10px; }
+    input{ width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; margin-top:6px; font-size:15px; outline:none; }
+    input:focus{ border-color:#9653b6; box-shadow:0 0 0 3px rgba(150,83,182,.2); }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    button{ padding:10px 14px; border-radius:10px; border:1px solid #222; background:#111; color:#fff; cursor:pointer; font-weight:700; }
+    button.secondary{ background:#fff; color:#111; border:1px solid #222; }
+    button.accent{ background:var(--pp-accent); color:#3a2a00; border-color:#b38a00; text-shadow:0 1px 0 rgba(255,255,255,.35); }
+    button:disabled{ opacity:.6; cursor:not-allowed; }
+    pre{ background:#f7f7f7; padding:12px; border-radius:10px; overflow:auto; max-height:240px; border:1px solid #eee; }
+    #gateStatus{ font-size:14px; }
   </style>
 </head>
-<body>
-  <h1>Preach Point — Login & Subscribe</h1>
-  <p id="msg">Not signed in.</p>
 
-  <div class="card">
-    <h3>Create account / Sign in</h3>
-    <label>Email <input id="email" type="email" autocomplete="email" required /></label>
-    <label>Password <input id="pass" type="password" autocomplete="current-password" required /></label>
-    <div class="row">
-      <button id="btnSignup" class="secondary">Create account</button>
-      <button id="btnSignin">Sign in</button>
-      <button id="btnSignout" class="secondary">Sign out</button>
+<body>
+  <!-- brand strip -->
+  <div class="brand-bar">
+    <div class="logo-wrap">
+      <!-- Place your shield logo in /public/img/shield.png (optional) -->
+      <!-- <img src="/img/shield.png" alt="Shields Consulting"> -->
+      <h1>Shields Consulting</h1>
+      <img src="/img/preachpoint.png" alt="Preach Point" style="height:28px; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))">
     </div>
   </div>
 
-  <div class="card">
-    <h3>Your status</h3>
-    <button id="btnMe" class="secondary">Check /api/me</button>
-    <pre id="meBox">{}</pre>
+  <div class="container">
+
+    <div class="hero">
+      <div class="hero-title">Preach Point</div>
+      <div class="hero-sub">Login & Subscription</div>
+      <p id="msg" style="margin: 6px 0 0 0;">Not signed in.</p>
+    </div>
+
+    <div class="cards">
+      <!-- Left column: Sign in + Status -->
+      <div class="card">
+        <h3>Create account / Sign in</h3>
+        <label>Email <input id="email" type="email" autocomplete="email" required /></label>
+        <label>Password <input id="pass" type="password" autocomplete="current-password" required /></label>
+        <div class="row" style="margin-top:10px;">
+          <button id="btnSignup" class="secondary">Create account</button>
+          <button id="btnSignin" class="accent">Sign in</button>
+          <button id="btnSignout" class="secondary">Sign out</button>
+        </div>
+
+        <hr style="margin:18px 0; border:none; border-top:1px solid #eee;">
+        <h3>Your status</h3>
+        <div class="row">
+          <button id="btnMe" class="secondary">Check /api/me</button>
+        </div>
+        <pre id="meBox">{}</pre>
+      </div>
+
+      <!-- Right column: Access gate + Subscribe -->
+      <div class="card" id="gate" style="display:none">
+        <h3>Access</h3>
+        <p id="gateStatus" class="muted">Checking subscription…</p>
+        <div class="row">
+          <button id="enterAppBtn" class="secondary" style="display:none">Enter App</button>
+          <button id="subscribeBtn" class="accent" style="display:none">Subscribe — R99 / month</button>
+        </div>
+        <p class="muted" style="margin-top:10px;">Payments are processed securely via PayFast (sandbox while testing).</p>
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <h3>Subscribe</h3>
-    <p>Starts the PayFast sandbox subscription flow.</p>
-    <button id="btnSubscribe">Subscribe — R99 / month</button>
-  </div>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import {
-      getAuth, onAuthStateChanged,
-      createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut
-    } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
-
-    // TODO: REPLACE with your web config from Firebase Console → Project settings → "Web app"
-    const firebaseConfig = {
-  apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
-  authDomain: "preach-point.firebaseapp.com",
-  projectId: "preach-point",
-  storageBucket: "preach-point.firebasestorage.app",
-  messagingSenderId: "699269130347",
-  appId: "1:699269130347:web:a6617996b042821089692e",
-  measurementId: "G-3L6CZ43J51"
-};
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    const msg = document.getElementById('msg');
-    const email = document.getElementById('email');
-    const pass  = document.getElementById('pass');
-    const meBox = document.getElementById('meBox');
-
-    function setMsg(t){ msg.textContent = t; }
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const token = await user.getIdToken(false);
-        setMsg(`Signed in as ${user.email}`);
-        window.__idToken = token;
-      } else {
-        setMsg('Not signed in.');
-        window.__idToken = null;
-      }
-    });
-
-    document.getElementById('btnSignup').onclick = async () => {
-      try {
-        await createUserWithEmailAndPassword(auth, email.value, pass.value);
-        alert('Account created & signed in.');
-      } catch (e) { alert(e.message || e); }
-    };
-
-    document.getElementById('btnSignin').onclick = async () => {
-      try {
-        await signInWithEmailAndPassword(auth, email.value, pass.value);
-        alert('Signed in.');
-      } catch (e) { alert(e.message || e); }
-    };
-
-    document.getElementById('btnSignout').onclick = async () => {
-      await signOut(auth);
-      alert('Signed out.');
-    };
-
-    async function authFetchJson(url, opts = {}) {
-      const headers = { ...(opts.headers || {}), 'Content-Type': 'application/json' };
-      const user = auth.currentUser;
-      if (user) {
-        const t = await user.getIdToken(false);
-        headers.Authorization = `Bearer ${t}`;
-      }
-      const res = await fetch(url, { ...opts, headers });
-      const txt = await res.text();
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${txt}`);
-      return txt ? JSON.parse(txt) : null;
-    }
-
-    document.getElementById('btnMe').onclick = async () => {
-      try {
-        const data = await authFetchJson('/api/me');
-        meBox.textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        meBox.textContent = String(e);
-      }
-    };
-
-    document.getElementById('btnSubscribe').onclick = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return alert('Please sign in first.');
-        const token = await user.getIdToken(false);
-        const res = await fetch('/api/payfast/subscribe', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-        const html = await res.text();
-        const w = window.open('', '_blank');
-        w.document.write(html);
-        w.document.close(); // auto-submits to PayFast
-      } catch (e) {
-        alert(e.message || e);
-      }
-    };
-  </script>
+  <!-- App logic (gating + subscribe flow) -->
+  <script type="module" src="/login.js"></script>
 </body>
 </html>

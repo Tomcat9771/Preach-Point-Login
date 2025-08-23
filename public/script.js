@@ -1,20 +1,86 @@
-// ─── safeFetchJson helper ─────────────────────────────────────
-// Replace the existing safeFetchJson in script.js with:
-async function safeFetchJson(url, opts = {}) {
-  const headers = { ...(opts.headers || {}) };
-  const auth = window.__auth;
-  if (auth?.currentUser) {
-    const t = await auth.currentUser.getIdToken(/*forceRefresh=*/false);
-    headers.Authorization = `Bearer ${t}`;
+// ─── Access guard (works embedded or same-origin) ─────────────────
+//(async () => {
+//  const API_ORIGIN='https://preach-point-login.vercel.app'
+//  const LOGIN_PATH = '/login'; // your login route
+//
+//  try {
+//    const res = await fetch(API_ORIGIN + '/api/me', { credentials: 'include' });
+//    if (res.status === 401) {
+//      location.href = API_ORIGIN + LOGIN_PATH;
+//      return;
+//  }
+//    const me = await res.json();
+//    if (!me.subscriber) {
+//      location.href = API_ORIGIN + LOGIN_PATH;
+//      return;
+//    }
+//  } catch {
+//    // Optional: show a banner if the API is down
+//  }
+//})();
+//*********************************************************************************
+(async () => {
+  const API_ORIGIN = '';              // '' for local same-origin
+  const LOGIN_PATH = '/login';
+
+  try {
+    const res = await fetch(API_ORIGIN + '/api/me', { credentials: 'include' });
+    if (res.status === 401) return location.href = API_ORIGIN + LOGIN_PATH;
+    const me = await res.json();
+    if (!me.subscriber) return location.href = API_ORIGIN + LOGIN_PATH;
+  } catch {
+    // optional: banner if API is down
   }
-  const res = await fetch(url, { ...opts, headers });
+})();
+//********************************************************************************
+
+
+
+// ─── safeFetchJson helper (replace existing) ────────────────────
+//async function safeFetchJson(url, opts = {}) {
+//  const headers = { ...(opts.headers || {}) };
+//  const auth = window.__auth;
+//  if (auth?.currentUser) {
+//    const t = await auth.currentUser.getIdToken(false);
+//    headers.Authorization = `Bearer ${t}`;
+//  }
+//  const res = await fetch(url, { ...opts, headers });
+//  const txt = await res.text();
+//  if (!res.ok) {
+//    console.error('API error response:', txt);
+//    throw new Error(`HTTP ${res.status}: ${txt}`);
+//  }
+//  return txt ? JSON.parse(txt) : null;
+//}
+
+// Authenticated fetch that reuses safeFetchJson-style error handling
+async function safeFetchJsonAuth(url, init = {}) {
+  const token = await (window.__auth?.getIdToken?.() ?? null);
+  const headers = new Headers(init.headers || {});
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(url, { ...init, headers });
   const txt = await res.text();
   if (!res.ok) {
     console.error('API error response:', txt);
     throw new Error(`HTTP ${res.status}: ${txt}`);
   }
-  return txt ? JSON.parse(txt) : null;
+  return JSON.parse(txt);
 }
+// ─── Auth gate on app load ─────────────────────────────
+(async function guardAccess() {
+  try {
+    const me = await safeFetchJsonAuth('/api/me');
+    console.debug('Gate OK:', me);
+  } catch (err) {
+    const msg = String(err?.message || '');
+    if (msg.includes('HTTP 401')) {
+      window.location.href = '/login.html'; // not signed in
+      return;
+    }
+    console.error('Gate check failed:', err);
+  }
+})();
+
 
 // ─── Localized Afrikaans book names (same order as /api/books) ──
 const afBookNames = [
