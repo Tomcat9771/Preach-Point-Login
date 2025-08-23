@@ -511,7 +511,8 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
 </body></html>`);
   } catch (err) {
     console.error('subscribe error:', err);
-    return res.status(500).json({ error: 'Could not start subscription' });
+ const devMsg = process.env.DEBUG_ERRORS ? String(err && err.stack || err) : 'Could not start   subscription';
+ return res.status(500).json({ error: devMsg });
   }
 });
 
