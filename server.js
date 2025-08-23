@@ -143,10 +143,16 @@ function escapeHtmlAttr(v) {
     .replace(/>/g, '&gt;');
 }
 // ─── Who am I (requires auth) ─────────────────────────────────────────────────
-app.get('/api/me', requireAuth, (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  const { uid, email, subscriber } = req.user || {};
-  res.json({ uid, email, subscriber: !!subscriber });
+app.get('/api/me', requireAuth, async (req, res) => {
+  const { uid, email } = req.user || {};
+  let subscriber = false;
+  try {
+    const snap = await admin.firestore().doc(`users/${uid}`).get();
+    if (snap.exists) subscriber = !!snap.data()?.subscriber;
+  } catch (e) {
+    console.warn('me: firestore read failed', e);
+  }
+  res.json({ uid, email, subscriber });
 });
 
 // ---- DEBUG: show masked PayFast/Firebase envs (no secrets) --------------------
@@ -457,7 +463,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       // email_address: email || '',
       // name_first: 'Tommy',
       // name_last: 'Shields',
-      // custom_str1: uid,
+      custom_str1: uid,
     };
 
     // 3) Sign (passphrase only if provided in env)
@@ -499,65 +505,86 @@ async function validateWithPayFast(paramStrNoPassphrase) {
   return text; // 'VALID' or 'INVALID'
 }
 
-app.post('/api/payfast/itn', async (req, res) => {
+// ITN: PayFast Instant Transaction Notification
+// NOTE: ensure this route uses urlencoded parser
+app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req, res) => {
   try {
-    // ITN posts are x-www-form-urlencoded; we enabled urlencoded parser in Step 2
-    const payload = { ...req.body };
+    // Raw posted fields
+    const posted = { ...req.body };
 
-    // 1) Check signature
-    const receivedSig = payload.signature;
-    delete payload.signature;
-
-    const paramStrForHash = buildPfParamString(payload, process.env.PAYFAST_PASSPHRASE);
-    const calcSig = md5Hex(paramStrForHash);
-    if (calcSig !== receivedSig) {
-      console.warn('ITN invalid signature');
-      return res.status(200).send('OK'); // still 200 so PayFast doesn’t retry forever
+    // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
+    const receivedSig = String(posted.signature || '');
+    const expectedSig = generateSignature(posted, process.env.PAYFAST_PASSPHRASE || '');
+    if (expectedSig !== receivedSig) {
+      console.warn('ITN: invalid signature', { receivedSig, expectedSig });
+      return res.status(200).send('OK'); // acknowledge to stop retries
     }
 
-    // 2) Validate with PayFast (anti-spoof)
-    // NOTE: For /eng/query/validate you do NOT include your passphrase
-    const paramStrNoPassphrase = buildPfParamString(payload, null);
-    const validateResp = await validateWithPayFast(paramStrNoPassphrase);
+    // 2) Validate with PayFast to prevent spoofing (NO passphrase in this call)
+    const qsNoPass = buildPfParamString(posted, ''); // empty passphrase = omitted
+    const validateResp = await validateWithPayFast(qsNoPass);
     if (validateResp !== 'VALID') {
-      console.warn('ITN validate != VALID:', validateResp);
+      console.warn('ITN: remote validate != VALID:', validateResp);
       return res.status(200).send('OK');
     }
 
-    // 3) Extract key fields
-const uid = payload.custom_str1;
-const mPaymentId = payload.m_payment_id;
-const paymentStatus = payload.payment_status;
-const subscriptionStatus = payload.subscription_status;
-
-// 4) Update Firestore subscription doc — use the ID from the payload
-const subRef = db.collection('subscriptions').doc(mPaymentId);
-await subRef.set({
-  uid,
-  status: (subscriptionStatus || paymentStatus || 'unknown').toLowerCase(),
-  lastItn: payload,
-  updatedAt: FieldValue.serverTimestamp()
-}, { merge: true });
-
-    // 5) Flip custom claim
-    if ((subscriptionStatus === 'ACTIVE') || (paymentStatus === 'COMPLETE')) {
-      const user = await auth.getUser(uid);
-      await auth.setCustomUserClaims(uid, { ...(user.customClaims || {}), subscriber: true });
-    }
-    if ((subscriptionStatus === 'CANCELLED') || (paymentStatus === 'CANCELLED')) {
-      const user = await auth.getUser(uid);
-      const cc = { ...(user.customClaims || {}) };
-      delete cc.subscriber;
-      await auth.setCustomUserClaims(uid, cc);
+    // 3) Identify the user
+    let uid = posted.custom_str1;
+    if (!uid && typeof posted.m_payment_id === 'string' && posted.m_payment_id.startsWith('sub_')) {
+      // Fallback: sub_{uid}_{timestamp}
+      const parts = posted.m_payment_id.split('_');
+      uid = parts[1];
     }
 
-    // 6) Always 200 OK
+    // 4) Persist subscription record
+    const mPaymentId = String(posted.m_payment_id || 'unknown');
+    await db.collection('subscriptions').doc(mPaymentId).set({
+      uid: uid || null,
+      status: String((posted.subscription_status || posted.payment_status || 'unknown')).toLowerCase(),
+      lastItn: posted,
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // 5) Business rules → flip subscriber true
+    const status = String(posted.payment_status || '').toUpperCase();         // e.g. COMPLETE
+    const subStatus = String(posted.subscription_status || '').toUpperCase(); // e.g. ACTIVE
+    const amount = Number(posted.amount_gross || posted.amount || 0);
+
+    if (uid && (subStatus === 'ACTIVE' || status === 'COMPLETE') && amount >= 99) {
+      // Write to users/{uid} so /api/me can read it WITHOUT token refresh
+      await db.doc(`users/${uid}`).set({
+        subscriber: true,
+        pf: {
+          last_status: subStatus || status,
+          last_itn_at: FieldValue.serverTimestamp(),
+          pf_payment_id: posted.pf_payment_id || null,
+          token: posted.token || null,
+          amount_gross: posted.amount_gross || null
+        }
+      }, { merge: true });
+
+      // Optional: also mirror in custom claims (requires token refresh to be visible)
+      try {
+        const user = await auth.getUser(uid);
+        await auth.setCustomUserClaims(uid, { ...(user.customClaims || {}), subscriber: true });
+      } catch (e) {
+        console.warn('ITN: setCustomUserClaims failed (continuing):', e.message);
+      }
+
+      console.log('ITN: subscriber activated for', uid);
+    } else {
+      console.warn('ITN: not activating', { uid, subStatus, status, amount });
+    }
+
+    // 6) Always OK
     return res.status(200).send('OK');
   } catch (err) {
     console.error('ITN handler error:', err);
-    return res.status(200).send('OK'); // acknowledge to avoid retries; check logs
+    // Still acknowledge so PayFast doesn't retry forever
+    return res.status(200).send('OK');
   }
 });
+
 // ─── 5️⃣ GET /api/chapters ─────────────────────────────────────────────────────
 app.get('/api/chapters', (req, res) => {
   try {

@@ -6,6 +6,26 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>body{font-family:system-ui;margin:2rem;}</style>
 </head>
+<script>
+(async function poll() {
+  try {
+    const headers = new Headers();
+    if (window.opener?.__auth?.currentUser) {
+      const t = await window.opener.__auth.currentUser.getIdToken();
+      headers.set('Authorization', 'Bearer ' + t);
+    }
+    const r = await fetch('/api/me', { headers });
+    const me = r.ok ? await r.json() : {};
+    if (me.subscriber) {
+      document.getElementById('status').textContent = 'Subscription is ACTIVE.';
+      return;
+    }
+  } catch {}
+  setTimeout(poll, 2000);
+})();
+</script>
+
+
 <body>
   <h1>Thank you!</h1>
   <p>Your payment was received. We’re confirming your subscription…</p>
