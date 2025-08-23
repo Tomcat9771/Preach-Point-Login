@@ -42,16 +42,27 @@ async function safeFetchJson(url, opts = {}) {
 
 // ─── Auth gate on app load ─────────────────────────────────────
 (async function guardAccess() {
+  const appEl = document.getElementById('app');
   try {
-    const me = await safeFetchJson('/api/me');
-    console.debug('Gate OK:', me);
-  } catch (err) {
-    const msg = String(err?.message || '');
-    if (msg.includes('HTTP 401')) {
-      // Not signed in → go to the login page file
-      window.location.href = '/login.html';
+    const headers = new Headers();
+    if (window.__auth?.currentUser) {
+      const t = await window.__auth.currentUser.getIdToken(false);
+      headers.set('Authorization', `Bearer ${t}`);
+    }
+    const r = await fetch('/api/me', { headers });
+
+    if (r.ok) {
+      // Auth OK → reveal app
+      if (appEl) appEl.hidden = false;
       return;
     }
+    if (r.status === 401) {
+      // Not signed in → go to login page file
+      location.href = '/login.html';
+      return;
+    }
+    console.error('Gate unexpected:', r.status, await r.text());
+  } catch (err) {
     console.error('Gate check failed:', err);
   }
 })();
