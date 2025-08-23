@@ -133,7 +133,15 @@ function requireSubscriber(req, res, next) {
   next();
 }
 app.use(authOptional);
-
+// Safely escape values for HTML attributes in the auto-post form
+function escapeHtmlAttr(v) {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
 // ─── Who am I (requires auth) ─────────────────────────────────────────────────
 app.get('/api/me', requireAuth, (req, res) => {
   res.set('Cache-Control', 'no-store');
