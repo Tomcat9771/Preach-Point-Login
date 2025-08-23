@@ -453,8 +453,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     };
 
     // 3) Sign (passphrase only if provided in env)
-    import { generateSignature } from './buildPfParamString.mjs';
-    const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
+       const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
 
     // 4) Render auto-posting form with EXACTLY the same fields + signature
     const target = isLive
