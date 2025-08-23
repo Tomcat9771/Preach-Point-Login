@@ -416,103 +416,63 @@ function extractVersesAF(bookName, startChap, startV, endChap, endV) {
 
 //-------------------------------------------------------------------------------
 
+// POST /api/payfast/subscribe
 app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
   try {
-    if (!db) return res.status(500).json({ error: 'Server auth not initialized' });
+    // 1) Auth context
+    const { uid, email } = req.user || {};
+    if (!uid) return res.status(401).json({ error: 'Sign in required' });
 
-    const isLive = (process.env.PAYFAST_MODE || 'sandbox').toLowerCase() === 'live';
+    const isLive = process.env.PAYFAST_MODE === 'live';
+    const siteUrl = process.env.SITE_URL || `https://${req.headers.host}`;
+    const price = '99.00'; // fixed monthly price
+
+    // 2) Build the exact fields you will POST (in insertion order)
+    const fields = {
+      merchant_id: process.env.PAYFAST_MERCHANT_ID,   // e.g. 10041319 (your sandbox)
+      merchant_key: process.env.PAYFAST_MERCHANT_KEY, // e.g. 26zrknv5myxxx
+      return_url: `${siteUrl}/subscribe/success`,
+      cancel_url: `${siteUrl}/subscribe/cancel`,
+      notify_url: `${siteUrl}/api/payfast/itn`,
+
+      m_payment_id: `sub_${uid}_${Date.now()}`,
+      amount: price,
+      item_name: 'Preach Point Monthly',
+      subscription_type: '1',
+      billing_date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
+
+      recurring_amount: price,
+      frequency: '3', // monthly
+      cycles: '0',
+
+      // Optional metadata (include ONLY if you want it AND it must be part of the signature)
+      // email_address: email || '',
+      // name_first: 'Tommy',
+      // name_last: 'Shields',
+      // custom_str1: uid,
+    };
+
+    // 3) Sign (passphrase only if provided in env)
+    import { generateSignature } from './buildPfParamString.mjs';
+    const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
+
+    // 4) Render auto-posting form with EXACTLY the same fields + signature
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
       : 'https://sandbox.payfast.co.za/eng/process';
 
-    // Env checks — require passphrase ONLY in LIVE
-    const required = [
-      'PAYFAST_MODE','PAYFAST_MERCHANT_ID','PAYFAST_MERCHANT_KEY',
-      'PAYFAST_RETURN_URL','PAYFAST_CANCEL_URL','PAYFAST_NOTIFY_URL',
-      'SUBSCRIPTION_AMOUNT','SUBSCRIPTION_ITEM'
-    ];
-    if (isLive) required.push('PAYFAST_PASSPHRASE');
-
-    const missing = required.filter(k => !process.env[k]);
-    if (missing.length) {
-      console.error('Missing PayFast env:', missing);
-      return res.status(400).json({ error: 'Missing required PayFast environment variables', missing });
-    }
-
-    const tidy = x => (x == null ? '' : String(x).trim());
-    const price = '99.00';
-
-    // Use a Firestore doc ID for m_payment_id so ITN can map back exactly.
-    const subRef = db.collection('subscriptions').doc();
-    const mPaymentId = subRef.id;
-
-    // Build the exact field set we will SIGN and POST (keep in strict order when hashing)
-    const fields = {
-  merchant_id: process.env.PAYFAST_MERCHANT_ID,              // 10041319
-  merchant_key: process.env.PAYFAST_MERCHANT_KEY,            // 26zrknv5myxxx
-  return_url: `${process.env.SITE_URL}/subscribe/success`,
-  cancel_url: `${process.env.SITE_URL}/subscribe/cancel`,
-  notify_url: `${process.env.SITE_URL}/api/payfast/itn`,
-
-  m_payment_id: `sub_${uid}_${Date.now()}`,
-  amount: '99.00',
-  item_name: 'Preach Point Monthly',
-  subscription_type: '1',
-  // match your working HTML: include a billing_date
-  billing_date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
-
-  recurring_amount: '99.00',
-  frequency: '3',   // monthly
-  cycles: '0'
-  // NOTE: Don’t add extra fields like email_address/custom_str1 unless
-  // you also include them here BEFORE signing (and with identical values).
-};
-
-    // SIGN (spaces => '+', no URL encoding). Passphrase ONLY in LIVE.
-    const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : '');
-    const signature = md5Hex(paramStr);
-
-    // (Optional) helpful logs
-    console.log('PF mode:', isLive ? 'LIVE' : 'SANDBOX');
-    console.log('PF target:', target);
-    console.log('PF sign paramStr:', paramStr);
-    console.log('PF signature:', signature);
-
-    // Record a pending sub for this user (so you can show UI state)
-    await subRef.set({
-      uid: req.user.uid,
-      status: 'pending',
-      plan: 'monthly',
-      createdAt: FieldValue.serverTimestamp()
-    });
-
-    // HTML-escape attributes to match exactly what we signed
-    const escapeHtmlAttr = (s) =>
-      String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
     const inputs = Object.entries({ ...fields, signature })
-  .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}">`)
-  .join('\n');
+      .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}">`)
+      .join('\n');
 
-    // Return an auto-submitting HTML form (your login.html opens this in a new tab)
-    return res
-      .set('Content-Type','text/html; charset=utf-8')
-      .status(200)
-      .send(`<!doctype html>
-<html><head><meta charset="utf-8"><title>Redirecting…</title></head>
-<body onload="document.forms[0].submit()">
-  <!-- DEBUG:
-       ${paramStr}
-       signature=${signature} -->
-  <form action="${target}" method="post">
-    ${inputs}
-  </form>
-  <noscript><button type="submit">Continue to PayFast</button></noscript>
-</body></html>`);
+    res.set('Content-Type', 'text/html').send(`<!doctype html><html><body>
+      <form id="pf" action="${target}" method="post">${inputs}</form>
+      <script>document.getElementById('pf').submit();</script>
+    </body></html>`);
   } catch (err) {
     console.error('subscribe error:', err);
- const devMsg = process.env.DEBUG_ERRORS ? String(err && err.stack || err) : 'Could not start   subscription';
- return res.status(500).json({ error: devMsg });
+    const devMsg = process.env.DEBUG_ERRORS ? String(err && err.stack || err) : 'Could not start subscription';
+    res.status(500).json({ error: devMsg });
   }
 });
 
