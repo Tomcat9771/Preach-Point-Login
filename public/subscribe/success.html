@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Payment received</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>body{font-family:system-ui;margin:2rem;}</style>
+</head>
+<body>
+  <h1>Thank you!</h1>
+  <p>Your payment was received. We’re confirming your subscription…</p>
+  <p id="status">Checking status…</p>
+  <p><a href="/">Back to Preach Point</a></p>
+
+  <script>
+    // Poll /api/me for subscriber flag (ITN flips it on the server)
+    (async function poll() {
+      try {
+        const headers = new Headers();
+        if (window.opener && window.opener.__auth?.currentUser) {
+          const t = await window.opener.__auth.currentUser.getIdToken();
+          headers.set('Authorization', 'Bearer ' + t);
+        }
+        const r = await fetch('/api/me', { headers });
+        const txt = await r.text();
+        if (r.ok) {
+          const me = JSON.parse(txt);
+          if (me.subscriber) {
+            document.getElementById('status').textContent = 'Subscription is ACTIVE. You can return to the app.';
+            return;
+          }
+        }
+      } catch (e) {}
+      setTimeout(poll, 2000);
+    })();
+  </script>
+</body>
+</html>
