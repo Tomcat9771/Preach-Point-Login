@@ -819,8 +819,14 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// ─── 🔟 Launch server ───────────────────────────────────────────────────────────
+// ─── Launch / Export ───────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Preach Point server listening on http://localhost:${PORT}`);
-});
+
+// On Vercel, we export the app (no .listen). Locally, we listen.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Preach Point server listening on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
