@@ -8,7 +8,7 @@ import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 
-import { buildPfParamString, generateSignature, md5Hex } from './buildPfParamString.mjs';
+import { generateSignature } from './buildPfParamString.mjs';
 
 import admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -195,7 +195,7 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
     };
 
     // Sign: passphrase only in LIVE. In sandbox it must be omitted.
-    const signature = generateSignature(fields, isLive ? (process.env.PAYFAST_PASSPHRASE || '') : '');
+    const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
     fields.signature = signature;
 
     res.json({ target, fields, signature, note: 'This is a dry run. No Firestore writes, no redirect.' });
@@ -448,29 +448,25 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
 
     // Build the exact field set we will SIGN and POST (keep in strict order when hashing)
     const fields = {
-      merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
-      merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+  merchant_id: process.env.PAYFAST_MERCHANT_ID,              // 10041319
+  merchant_key: process.env.PAYFAST_MERCHANT_KEY,            // 26zrknv5myxxx
+  return_url: `${process.env.SITE_URL}/subscribe/success`,
+  cancel_url: `${process.env.SITE_URL}/subscribe/cancel`,
+  notify_url: `${process.env.SITE_URL}/api/payfast/itn`,
 
-      // redirects / ITN (sanitize/trims already)
-      return_url:    tidy(process.env.PAYFAST_RETURN_URL),
-      cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
-      notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
+  m_payment_id: `sub_${uid}_${Date.now()}`,
+  amount: '99.00',
+  item_name: 'Preach Point Monthly',
+  subscription_type: '1',
+  // match your working HTML: include a billing_date
+  billing_date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
 
-      // transaction
-      m_payment_id:  mPaymentId,
-      amount:        price,
-      item_name:     tidy(process.env.SUBSCRIPTION_ITEM),
-
-      // recurring
-      subscription_type: 1,
-      billing_date:      tidy(req.body?.billing_date || ''), // optional override from UI; blank means “start now” in PF
-      recurring_amount:  price,
-      frequency:         3,         // 3 = monthly
-      cycles:            0,         // 0 = indefinite
-
-      // link user back in ITN
-      custom_str1: req.user.uid
-    };
+  recurring_amount: '99.00',
+  frequency: '3',   // monthly
+  cycles: '0'
+  // NOTE: Don’t add extra fields like email_address/custom_str1 unless
+  // you also include them here BEFORE signing (and with identical values).
+};
 
     // SIGN (spaces => '+', no URL encoding). Passphrase ONLY in LIVE.
     const paramStr = buildPfParamString(fields, isLive ? process.env.PAYFAST_PASSPHRASE : '');
@@ -495,8 +491,8 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     const inputs = Object.entries({ ...fields, signature })
-      .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}" />`)
-      .join('\n    ');
+  .map(([k, v]) => `<input type="hidden" name="${k}" value="${escapeHtmlAttr(String(v))}">`)
+  .join('\n');
 
     // Return an auto-submitting HTML form (your login.html opens this in a new tab)
     return res
