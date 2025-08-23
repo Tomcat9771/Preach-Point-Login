@@ -171,7 +171,7 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
       : 'https://sandbox.payfast.co.za/eng/process';
 
     const tidy  = (x) => (x == null ? '' : String(x).trim());
-    const price = Number(process.env.SUBSCRIPTION_AMOUNT || 0).toFixed(2);
+    const price = '99.00';
     const mPaymentId = 'debug_' + Math.random().toString(36).slice(2, 10);
 
     const fields = {
@@ -440,7 +440,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     }
 
     const tidy = x => (x == null ? '' : String(x).trim());
-    const price = Number(process.env.SUBSCRIPTION_AMOUNT).toFixed(2);
+    const price = '99.00';
 
     // Use a Firestore doc ID for m_payment_id so ITN can map back exactly.
     const subRef = db.collection('subscriptions').doc();
