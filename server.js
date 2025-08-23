@@ -452,6 +452,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       m_payment_id: `sub_${uid}_${Date.now()}`,
       amount: price,
       item_name: 'Preach Point Monthly',
+      custom_str1: uid,
       subscription_type: '1',
       billing_date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
 
@@ -463,7 +464,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       // email_address: email || '',
       // name_first: 'Tommy',
       // name_last: 'Shields',
-      custom_str1: uid,
+      
     };
 
     // 3) Sign (passphrase only if provided in env)
