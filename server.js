@@ -8,7 +8,7 @@ import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 
-import { generateSignature } from './buildPfParamString.mjs';
+import { buildPfParamString, generateSignature } from './buildPfParamString.mjs';
 
 import admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';

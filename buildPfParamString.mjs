@@ -10,7 +10,7 @@ function pfEncode(v) {
     .replace(/%[0-9a-f]{2}/g, m => m.toUpperCase()); // uppercase hex
 }
 
-// Build canonical string from ALL non-empty fields except 'signature', sorted A→Z.
+// Build canonical string from ALL non-empty fields except 'signature', preserving insertion order.
 // Append passphrase LAST (only if provided).
 export function buildPfParamString(fields, passphrase = '') {
   const parts = Object.entries(fields)
