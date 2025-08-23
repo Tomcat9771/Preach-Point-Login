@@ -1,41 +1,3 @@
-// ─── Access guard (works embedded or same-origin) ─────────────────
-//(async () => {
-//  const API_ORIGIN='https://preach-point-login.vercel.app'
-//  const LOGIN_PATH = '/login'; // your login route
-//
-//  try {
-//    const res = await fetch(API_ORIGIN + '/api/me', { credentials: 'include' });
-//    if (res.status === 401) {
-//      location.href = API_ORIGIN + LOGIN_PATH;
-//      return;
-//  }
-//    const me = await res.json();
-//    if (!me.subscriber) {
-//      location.href = API_ORIGIN + LOGIN_PATH;
-//      return;
-//    }
-//  } catch {
-//    // Optional: show a banner if the API is down
-//  }
-//})();
-//*********************************************************************************
-(async () => {
-  const API_ORIGIN = '';              // '' for local same-origin
-  const LOGIN_PATH = '/login';
-
-  try {
-    const res = await fetch(API_ORIGIN + '/api/me', { credentials: 'include' });
-    if (res.status === 401) return location.href = API_ORIGIN + LOGIN_PATH;
-    const me = await res.json();
-    if (!me.subscriber) return location.href = API_ORIGIN + LOGIN_PATH;
-  } catch {
-    // optional: banner if API is down
-  }
-})();
-//********************************************************************************
-
-
-
 // ─── safeFetchJson helper (replace existing) ────────────────────
 //async function safeFetchJson(url, opts = {}) {
 //  const headers = { ...(opts.headers || {}) };
@@ -53,28 +15,41 @@
 //  return txt ? JSON.parse(txt) : null;
 //}
 
-// Authenticated fetch that reuses safeFetchJson-style error handling
-async function safeFetchJsonAuth(url, init = {}) {
-  const token = await (window.__auth?.getIdToken?.() ?? null);
-  const headers = new Headers(init.headers || {});
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  const res = await fetch(url, { ...init, headers });
+// ─── safeFetchJson helper ─────────────────────────────────────
+/**
+ * Fetches URL and returns parsed JSON, or throws with the raw text on error.
+ * If signed-in with Firebase, attaches the ID token as Bearer.
+ */
+async function safeFetchJson(url, opts = {}) {
+  const headers = new Headers(opts.headers || {});
+  const auth = window.__auth; // set in login.js when that page runs
+  if (auth?.currentUser) {
+    const t = await auth.currentUser.getIdToken(/* forceRefresh */ false);
+    headers.set('Authorization', `Bearer ${t}`);
+  }
+  const res = await fetch(url, { ...opts, headers });
   const txt = await res.text();
   if (!res.ok) {
     console.error('API error response:', txt);
     throw new Error(`HTTP ${res.status}: ${txt}`);
   }
-  return JSON.parse(txt);
+  const ctype = res.headers.get('content-type') || '';
+  if (!ctype.includes('application/json')) {
+    throw new Error(`Expected JSON but got: ${ctype || 'unknown'}\n${txt.slice(0,200)}`);
+  }
+  return txt ? JSON.parse(txt) : null;
 }
-// ─── Auth gate on app load ─────────────────────────────
+
+// ─── Auth gate on app load ─────────────────────────────────────
 (async function guardAccess() {
   try {
-    const me = await safeFetchJsonAuth('/api/me');
+    const me = await safeFetchJson('/api/me');
     console.debug('Gate OK:', me);
   } catch (err) {
     const msg = String(err?.message || '');
     if (msg.includes('HTTP 401')) {
-      window.location.href = '/login.html'; // not signed in
+      // Not signed in → go to the login page file
+      window.location.href = '/login.html';
       return;
     }
     console.error('Gate check failed:', err);
