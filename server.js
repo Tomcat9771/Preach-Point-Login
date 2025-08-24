@@ -146,12 +146,15 @@ function escapeHtmlAttr(v) {
 app.get('/api/me', requireAuth, async (req, res) => {
   const { uid, email } = req.user || {};
   let subscriber = false;
+
   try {
-    const snap = await admin.firestore().doc(`users/${uid}`).get();
+    // use your existing Firestore instance (db)
+    const snap = await db.doc(`users/${uid}`).get();
     if (snap.exists) subscriber = !!snap.data()?.subscriber;
   } catch (e) {
-    console.warn('me: firestore read failed', e);
+    console.warn('me: firestore read failed', e.message);
   }
+
   res.json({ uid, email, subscriber });
 });
 
