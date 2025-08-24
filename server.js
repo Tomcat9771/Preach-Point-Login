@@ -8,7 +8,12 @@ import NodeCache from 'node-cache';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 
-import { buildPfParamString, generateSignature } from './buildPfParamString.mjs';
+import {
+  buildPfParamString,            // keep for dry-run/debug if you want
+  generateSignature,
+  buildPfParamStringSorted,
+  generateSignatureSorted
+} from './buildPfParamString.mjs';
 
 import admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
@@ -518,14 +523,14 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
 
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
-    const expectedSig = generateSignature(posted, process.env.PAYFAST_PASSPHRASE || '');
+    const expectedSig = generateSignatureSorted(posted, process.env.PAYFAST_PASSPHRASE || '');
     if (expectedSig !== receivedSig) {
       console.warn('ITN: invalid signature', { receivedSig, expectedSig });
       return res.status(200).send('OK'); // acknowledge to stop retries
     }
 
     // 2) Validate with PayFast to prevent spoofing (NO passphrase in this call)
-    const qsNoPass = buildPfParamString(posted, ''); // empty passphrase = omitted
+    const qsNoPass = buildPfParamStringSorted(posted, ''); // sorted or unsorted is fine; sorted keeps it canonical
     const validateResp = await validateWithPayFast(qsNoPass);
     if (validateResp !== 'VALID') {
       console.warn('ITN: remote validate != VALID:', validateResp);
@@ -588,7 +593,13 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
     return res.status(200).send('OK');
   }
 });
-
+//************************************************************************************
+if (process.env.DEBUG_PAYFAST === '1') {
+  console.log('ITN paramString(sorted, with pass?):', buildPfParamStringSorted(posted, process.env.PAYFAST_PASSPHRASE || ''));
+  console.log('ITN receivedSig:', receivedSig);
+  console.log('ITN expectedSig:', expectedSig);
+}
+//************************************************************************************
 // ─── 5️⃣ GET /api/chapters ─────────────────────────────────────────────────────
 app.get('/api/chapters', (req, res) => {
   try {

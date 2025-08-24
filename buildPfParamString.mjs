@@ -30,3 +30,19 @@ export function md5Hex(s) {
 export function generateSignature(fields, passphrase = '') {
   return md5Hex(buildPfParamString(fields, passphrase));
 }
+
+export function buildPfParamStringSorted(fields, passphrase = '') {
+  const parts = Object.entries(fields)
+    .filter(([k, v]) => k !== 'signature' && v != null && String(v).trim() !== '')
+    .sort(([a], [b]) => a.localeCompare(b))                 // ← alphabetical A→Z
+    .map(([k, v]) => `${k}=${pfEncode(String(v).trim())}`);
+
+  if (passphrase && String(passphrase).trim() !== '') {
+    parts.push(`passphrase=${pfEncode(String(passphrase).trim())}`);
+  }
+  return parts.join('&');
+}
+
+export function generateSignatureSorted(fields, passphrase = '') {
+  return md5Hex(buildPfParamStringSorted(fields, passphrase));
+}
