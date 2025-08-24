@@ -36,6 +36,24 @@
 
 
 <body>
+<!-- Add near the top of <body> on index.html -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getAuth }       from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
+    authDomain: "preach-point.firebaseapp.com",
+    projectId: "preach-point",
+    storageBucket: "preach-point.firebasestorage.app",
+    messagingSenderId: "699269130347",
+    appId: "1:699269130347:web:a6617996b042821089692e",
+    measurementId: "G-3L6CZ43J51"
+  };
+  const app  = initializeApp(firebaseConfig);
+  window.__auth = getAuth(app); // <- used by script.js safeFetchJson / guardAccess
+</script>
+
   <!-- Keep the app hidden until /api/me says OK -->
   <div id="app" hidden>
     <div class="container">

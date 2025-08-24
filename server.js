@@ -133,10 +133,17 @@ function requireAuth(req, res, next) {
   if (!req.user?.uid) return res.status(401).json({ error: 'Sign in required' });
   next();
 }
-function requireSubscriber(req, res, next) {
-  if (!req.user?.subscriber) return res.status(402).json({ error: 'Subscription required' });
-  next();
+async function requireSubscriberDb(req, res, next) {
+  if (!req.user?.uid) return res.status(401).json({ error: 'Sign in required' });
+  try {
+    const snap = await db.doc(`users/${req.user.uid}`).get();
+    if (snap.exists && !!snap.data()?.subscriber) return next();
+  } catch (e) {
+    console.warn('requireSubscriberDb read failed:', e.message);
+  }
+  return res.status(402).json({ error: 'Subscription required' });
 }
+
 app.use(authOptional);
 // Safely escape values for HTML attributes in the auto-post form
 function escapeHtmlAttr(v) {
@@ -149,6 +156,9 @@ function escapeHtmlAttr(v) {
 }
 // ─── Who am I (requires auth) ─────────────────────────────────────────────────
 app.get('/api/me', requireAuth, async (req, res) => {
+  res.set('Cache-Control', 'no-store, max-age=0');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   const { uid, email } = req.user || {};
   let subscriber = false;
 
@@ -524,6 +534,11 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
     const expectedSig = generateSignatureSorted(posted, process.env.PAYFAST_PASSPHRASE || '');
+    if (process.env.DEBUG_PAYFAST === '1') {
+      console.log('ITN paramString(sorted):', buildPfParamStringSorted(posted, process.env.PAYFAST_PASSPHRASE || ''));
+      console.log('ITN receivedSig:', receivedSig);
+      console.log('ITN expectedSig:', expectedSig);
+    }
     if (expectedSig !== receivedSig) {
       console.warn('ITN: invalid signature', { receivedSig, expectedSig });
       return res.status(200).send('OK'); // acknowledge to stop retries
@@ -593,13 +608,6 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
     return res.status(200).send('OK');
   }
 });
-//************************************************************************************
-if (process.env.DEBUG_PAYFAST === '1') {
-  console.log('ITN paramString(sorted, with pass?):', buildPfParamStringSorted(posted, process.env.PAYFAST_PASSPHRASE || ''));
-  console.log('ITN receivedSig:', receivedSig);
-  console.log('ITN expectedSig:', expectedSig);
-}
-//************************************************************************************
 // ─── 5️⃣ GET /api/chapters ─────────────────────────────────────────────────────
 app.get('/api/chapters', (req, res) => {
   try {
@@ -685,7 +693,7 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 // 9️⃣ Endpoint: AI-only commentary
-app.post('/api/commentary', requireAuth, requireSubscriber, async (req, res) => {
+app.post('/api/commentary', requireAuth, requireSubscriberDb, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, tone, level, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -726,7 +734,7 @@ const passageRef = `${afRefBook} ${startChapter}:${startVerse}-${endChapter || s
   }
 });
 // 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion', requireAuth, requireSubscriber, async (req, res) => {
+app.post('/api/devotion',  requireAuth, requireSubscriberDb, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -775,7 +783,7 @@ ${scripture}`;
 
 
 // 🔟 Endpoint: AI-only prayer
-app.post('/api/prayer', requireAuth, requireSubscriber, async (req, res) => {
+app.post('/api/prayer',    requireAuth, requireSubscriberDb, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
