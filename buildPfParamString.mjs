@@ -46,3 +46,19 @@ export function buildPfParamStringSorted(fields, passphrase = '') {
 export function generateSignatureSorted(fields, passphrase = '') {
   return md5Hex(buildPfParamStringSorted(fields, passphrase));
 }
+
+export function buildPfParamStringSortedAll(fields, passphrase = '') {
+  const parts = Object.entries(fields)
+    .filter(([k]) => k !== 'signature')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${pfEncode(v ?? '')}`);
+
+  if (passphrase !== undefined && passphrase !== null) {
+    parts.push(`passphrase=${pfEncode(passphrase)}`);
+  }
+  return parts.join('&');
+}
+
+export function generateSignatureSortedAll(fields, passphrase = '') {
+  return md5Hex(buildPfParamStringSortedAll(fields, passphrase));
+}
