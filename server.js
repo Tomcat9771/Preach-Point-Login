@@ -10,11 +10,7 @@ import helmet from 'helmet';
 
 import {
   buildPfParamString,            // keep for dry-run/debug if you want
-  generateSignature,
-  buildPfParamStringSorted,
-  generateSignatureSorted,
-  buildPfParamStringSortedAll,
-  generateSignatureSortedAll
+  generateSignature
 } from './buildPfParamString.mjs';
 
 import admin from 'firebase-admin';
@@ -545,7 +541,7 @@ console.log('ITN payload:', posted);
     }
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
-    const expectedSig = generateSignatureSortedAll(posted, PAYFAST_PASS);
+    console.log('ITN paramString:', buildPfParamString(posted, PAYFAST_PASS));
     if (process.env.DEBUG_PAYFAST === '1') {
       console.log('ITN paramString(sorted):', buildPfParamStringSortedAll(posted, PAYFAST_PASS));
       console.log('ITN receivedSig:', receivedSig);
@@ -557,7 +553,7 @@ console.log('ITN payload:', posted);
     }
 
     // 2) Validate with PayFast to prevent spoofing (NO passphrase in this call)
-    const qsNoPass = buildPfParamStringSortedAll(posted, ''); // sorted keeps it canonical
+    const qsNoPass = buildPfParamString(posted, '');
     const validateResp = await validateWithPayFast(qsNoPass);
     if (validateResp !== 'VALID') {
       console.warn('ITN: remote validate != VALID:', validateResp);
