@@ -541,6 +541,7 @@ console.log('ITN payload:', posted);
     }
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
+    const expectedSig = generateSignature(posted, PAYFAST_PASS);
     console.log('ITN paramString:', buildPfParamString(posted, PAYFAST_PASS));
     if (process.env.DEBUG_PAYFAST === '1') {
       console.log('ITN paramString(sorted):', buildPfParamStringSortedAll(posted, PAYFAST_PASS));
