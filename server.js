@@ -541,8 +541,8 @@ console.log('ITN payload:', posted);
     }
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
-    const expectedSig = generateSignature(posted, PAYFAST_PASS);
-    console.log('ITN paramString:', buildPfParamString(posted, PAYFAST_PASS));
+    const expectedSig = generateSignature(posted, PAYFAST_PASS, { includeEmpty: true });
+    console.log('ITN paramString:', buildPfParamString(posted, PAYFAST_PASS, { includeEmpty: true }));
     if (process.env.DEBUG_PAYFAST === '1') {
       console.log('ITN paramString(sorted):', buildPfParamStringSortedAll(posted, PAYFAST_PASS));
       console.log('ITN receivedSig:', receivedSig);
@@ -554,7 +554,7 @@ console.log('ITN payload:', posted);
     }
 
     // 2) Validate with PayFast to prevent spoofing (NO passphrase in this call)
-    const qsNoPass = buildPfParamString(posted, '');
+    const qsNoPass = buildPfParamString(posted, '', { includeEmpty: true });
     const validateResp = await validateWithPayFast(qsNoPass);
     if (validateResp !== 'VALID') {
       console.warn('ITN: remote validate != VALID:', validateResp);
