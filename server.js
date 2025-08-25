@@ -20,6 +20,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 dotenv.config();
 
+// PayFast passphrase: include only in live mode
+const PAYFAST_PASS = process.env.PAYFAST_MODE === 'live'
+  ? (process.env.PAYFAST_PASSPHRASE || '')
+  : '';
+
 // ─── Firebase Admin bootstrap (resilient, single init) ────────────────────────
 async function loadServiceAccount() {
   const b64 =
@@ -180,7 +185,7 @@ app.get('/api/debug/env', (_req, res) => {
     PAYFAST_MODE: process.env.PAYFAST_MODE || '(unset)',
     PAYFAST_MERCHANT_ID: process.env.PAYFAST_MERCHANT_ID || '(unset)',
     PAYFAST_MERCHANT_KEY: mask(process.env.PAYFAST_MERCHANT_KEY),
-    PAYFAST_PASSPHRASE: process.env.PAYFAST_PASSPHRASE ? '(set)' : '(empty)',
+    PAYFAST_PASSPHRASE: PAYFAST_PASS ? '(set)' : '(empty)',
     PAYFAST_RETURN_URL: process.env.PAYFAST_RETURN_URL || '(unset)',
     PAYFAST_CANCEL_URL: process.env.PAYFAST_CANCEL_URL || '(unset)',
     PAYFAST_NOTIFY_URL: process.env.PAYFAST_NOTIFY_URL || '(unset)',
@@ -227,7 +232,7 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
     };
 
     // Sign: passphrase only in LIVE. In sandbox it must be omitted.
-    const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
+    const signature = generateSignature(fields, PAYFAST_PASS);
     fields.signature = signature;
 
     res.json({ target, fields, signature, note: 'This is a dry run. No Firestore writes, no redirect.' });
@@ -486,7 +491,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     };
 
     // 3) Sign (passphrase only if provided in env)
-       const signature = generateSignature(fields, process.env.PAYFAST_PASSPHRASE || '');
+       const signature = generateSignature(fields, PAYFAST_PASS);
 
     // 4) Render auto-posting form with EXACTLY the same fields + signature
     const target = isLive
@@ -530,12 +535,17 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
   try {
     // Raw posted fields
     const posted = { ...req.body };
+console.log('ITN payload:', posted);
 
+    if (!db || !auth) {
+      console.error('ITN: Firebase Admin not initialized');
+      return res.status(200).send('OK');
+    }
     // 1) Signature verification (exclude 'signature', passphrase ONLY if set)
     const receivedSig = String(posted.signature || '');
-    const expectedSig = generateSignatureSorted(posted, process.env.PAYFAST_PASSPHRASE || '');
+    const expectedSig = generateSignatureSorted(posted, PAYFAST_PASS);
     if (process.env.DEBUG_PAYFAST === '1') {
-      console.log('ITN paramString(sorted):', buildPfParamStringSorted(posted, process.env.PAYFAST_PASSPHRASE || ''));
+      console.log('ITN paramString(sorted):', buildPfParamStringSorted(posted, PAYFAST_PASS));
       console.log('ITN receivedSig:', receivedSig);
       console.log('ITN expectedSig:', expectedSig);
     }
@@ -562,12 +572,17 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
 
     // 4) Persist subscription record
     const mPaymentId = String(posted.m_payment_id || 'unknown');
-    await db.collection('subscriptions').doc(mPaymentId).set({
-      uid: uid || null,
-      status: String((posted.subscription_status || posted.payment_status || 'unknown')).toLowerCase(),
-      lastItn: posted,
-      updatedAt: FieldValue.serverTimestamp()
-    }, { merge: true });
+    try {
+      await db.collection('subscriptions').doc(mPaymentId).set({
+        uid: uid || null,
+        status: String((posted.subscription_status || posted.payment_status || 'unknown')).toLowerCase(),
+        lastItn: posted,
+        updatedAt: FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      console.error('ITN: subscription write failed:', e);
+    }
+
 
     // 5) Business rules → flip subscriber true
     const status = String(posted.payment_status || '').toUpperCase();         // e.g. COMPLETE
@@ -576,16 +591,20 @@ app.post('/api/payfast/itn', express.urlencoded({ extended: false }), async (req
 
     if (uid && (subStatus === 'ACTIVE' || status === 'COMPLETE') && amount >= 99) {
       // Write to users/{uid} so /api/me can read it WITHOUT token refresh
-      await db.doc(`users/${uid}`).set({
-        subscriber: true,
-        pf: {
-          last_status: subStatus || status,
-          last_itn_at: FieldValue.serverTimestamp(),
-          pf_payment_id: posted.pf_payment_id || null,
-          token: posted.token || null,
-          amount_gross: posted.amount_gross || null
-        }
-      }, { merge: true });
+      try {
+        await db.doc(`users/${uid}`).set({
+          subscriber: true,
+          pf: {
+            last_status: subStatus || status,
+            last_itn_at: FieldValue.serverTimestamp(),
+            pf_payment_id: posted.pf_payment_id || null,
+            token: posted.token || null,
+            amount_gross: posted.amount_gross || null
+          }
+        }, { merge: true });
+      } catch (e) {
+        console.error('ITN: user update failed:', e);
+      }
 
       // Optional: also mirror in custom claims (requires token refresh to be visible)
       try {
