@@ -75,16 +75,22 @@ async function safeFetchJson(url, opts = {}) {
     headers.set('Authorization', `Bearer ${t}`);
     const r = await fetch('/api/me', { headers });
 
-    if (r.ok) {
-      // Auth OK → reveal app
-      if (appEl) appEl.hidden = false;
-      return;
-    }
     if (r.status === 401) {
-      // Not signed in → go to login page file
       location.href = '/login.html';
       return;
     }
+
+    if (r.ok) {
+      const me = await r.json();
+      if (me?.subscriber) {
+        if (appEl) appEl.hidden = false;
+        return;
+      }
+      // Not subscribed → redirect to subscribe page
+      location.href = '/subscribe.html';
+      return;
+    }
+
     console.error('Gate unexpected:', r.status, await r.text());
   } catch (err) {
     console.error('Gate check failed:', err);
