@@ -189,7 +189,7 @@ async function populateChapters() {
   try {
     js = await safeFetchJson(`/api/chapters?book=${encodeURIComponent(bookName)}`);
   } catch (err) {
-    alert(`Could not load chapters: ${err.message}`);
+    ppAlert(`Could not load chapters: ${err.message}`);
     return;
   }
 
@@ -220,7 +220,7 @@ async function populateVerses() {
       `/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${chap}`
     );
   } catch (err) {
-    alert(`Could not load verses: ${err.message}`);
+    ppAlert(`Could not load verses: ${err.message}`);
     return;
   }
 
@@ -247,7 +247,7 @@ async function populateEndVerses() {
       `/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${endChap}`
     );
   } catch (err) {
-    alert(`Could not load verses: ${err.message}`);
+    ppAlert(`Could not load verses: ${err.message}`);
     return;
   }
 
@@ -345,7 +345,7 @@ async function onGenerate() {
   const lvl      = $('level').value;
 
   if (!bookName || !sCh || !sV) {
-    alert('Please select a book, chapter & verse.');
+    ppAlert('Please select a book, chapter & verse.');
     return;
   }
 
@@ -398,7 +398,7 @@ async function onGenerate() {
 
     const maxLimit = 50;
     if (totalVerses > maxLimit) {
-      alert(`Please limit your selection to ${maxLimit} verses. You selected ${totalVerses}.`);
+      ppAlert(`Please limit your selection to ${maxLimit} verses. You selected ${totalVerses}.`);
       return;
     }
   } catch (e) {
@@ -424,7 +424,7 @@ async function onGenerate() {
     return; // stop further steps if verses fail
   }
 
-  // 2) Commentary (protected)
+  // 2) Commentary
   try {
     const js2 = await safeFetchJson('/api/commentary', {
       method: 'POST',
@@ -440,7 +440,7 @@ async function onGenerate() {
     $('commentary').textContent = `Error: ${e.message}`;
   }
 
-  // 3) Devotion (protected)
+  // 3) Devotion
   try {
     const jsD = await safeFetchJson('/api/devotion', {
       method: 'POST',
@@ -452,7 +452,7 @@ async function onGenerate() {
     $('devotionOutput').textContent = `Error: ${e.message}`;
   }
 
-  // 4) Prayer (protected)
+  // 4) Prayer
   try {
     const js3 = await safeFetchJson('/api/prayer', {
       method: 'POST',

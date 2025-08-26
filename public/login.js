@@ -47,9 +47,14 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    alert('Account created & signed in. You must complete payment before accessing the app.');
+    ppAlert('Account created & signed in. You must complete payment before accessing the app.');
     location.href = '/subscribe.html';
-  } catch (e) { alert(e.message || e); }
+  } catch (e) {
+    const msg = e.code === 'auth/email-already-in-use'
+      ? 'Email already in use'
+      : (e.message || e);
+    ppAlert(msg);
+  }
 };
 document.getElementById('btnSignin').onclick = async () => {
   try {
@@ -59,10 +64,10 @@ document.getElementById('btnSignin').onclick = async () => {
     const msg = e.code === 'auth/invalid-credential'
       ? 'User not Subscribed. Please create account'
       : (e.message || e);
-    alert(msg);
+    ppAlert(msg);
   }
 };
 document.getElementById('btnSignout').onclick = async () => {
   await signOut(auth);
-  alert('Signed out.');
+  ppAlert('Signed out.');
 };
