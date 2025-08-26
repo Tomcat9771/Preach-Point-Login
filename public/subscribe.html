@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Preach Point — Subscribe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+<body>
+  <h1>Subscription required</h1>
+  <p>You need an active subscription to access Preach Point.</p>
+  <button id="subscribeBtn">Subscribe — R99 / month</button>
+  <p><a href="/login.html">Return to login</a></p>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
+      authDomain: "preach-point.firebaseapp.com",
+      projectId: "preach-point",
+      storageBucket: "preach-point.firebasestorage.app",
+      messagingSenderId: "699269130347",
+      appId: "1:699269130347:web:a6617996b042821089692e",
+      measurementId: "G-3L6CZ43J51"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    async function checkStatus(){
+      const user = auth.currentUser;
+      if (!user){
+        location.href = '/login.html';
+        return;
+      }
+      try {
+        const t = await user.getIdToken(true);
+        const res = await fetch('/api/me', { headers:{ Authorization:`Bearer ${t}` } });
+        if (res.ok) {
+          const me = await res.json();
+          if (me?.subscriber){
+            await signOut(auth);
+            location.href = '/login.html';
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    onAuthStateChanged(auth, checkStatus);
+    window.addEventListener('focus', checkStatus);
+
+    document.getElementById('subscribeBtn').onclick = async () => {
+      try {
+        const t = await auth.currentUser.getIdToken(true);
+        const res = await fetch('/api/payfast/subscribe', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${t}` }
+        });
+        const html = await res.text();
+        const w = window.open('', '_blank');
+        if (!w) return alert('Please allow popups for this site.');
+        w.document.open(); w.document.write(html); w.document.close();
+      } catch (e) {
+        alert(e.message || e);
+      }
+    };
+  </script>
+</body>
+</html>
