@@ -326,7 +326,8 @@ function onReset() {
 }
 
 async function onLogout() {
-  await window.__auth.signOut();
+  const { signOut } = await import('https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js');
+  await signOut(window.__auth);
   location.href = '/login.html';
 }
 // ─── Wire up event listeners ─────────────────────────────────────
