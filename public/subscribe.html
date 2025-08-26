@@ -12,7 +12,7 @@
   <p><a href="/login.html">Return to login</a></p>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getAuth, onAuthStateChanged, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
@@ -26,7 +26,7 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    await setPersistence(auth, inMemoryPersistence);
+    await setPersistence(auth, browserLocalPersistence);
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
