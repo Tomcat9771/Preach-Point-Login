@@ -125,13 +125,15 @@ const buttonLabels = {
     generate: "Generate Commentary",
     copy:     "Copy to Clipboard",
     reset:    "Reset Fields",
-    pdf:      "Download as PDF"
+    pdf:      "Download as PDF",
+    logout:   "Log out"
   },
   af: {
     generate: "Genereer Kommentaar",
     copy:     "Kopieer na klembord",
     reset:    "Herstel Velde",
-    pdf:      "Laai af as PDF"
+    pdf:      "Laai af as PDF",
+    logout:   "Teken uit"
   }
  };
 const headingLabels = {
@@ -278,6 +280,7 @@ function updateButtonsAndHeadings(loc) {
   $('generate-btn').textContent      = buttonLabels[loc].generate;
   $('reset-btn').textContent         = buttonLabels[loc].reset;
   $('download-pdf').textContent      = buttonLabels[loc].pdf;
+  $('logout-btn').textContent        = buttonLabels[loc].logout;
   $('verses-heading').textContent     = headingLabels[loc].verses;
   $('commentary-heading').textContent = headingLabels[loc].commentary;
   const devHead = $('devotion-heading');                 // <— add
@@ -321,6 +324,11 @@ function onReset() {
   $('prayer').textContent = '';
   updateUI();
 }
+
+async function onLogout() {
+  await window.__auth.signOut();
+  location.href = '/login.html';
+}
 // ─── Wire up event listeners ─────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   updateUI();
@@ -330,6 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
   $('generate-btn').addEventListener('click', onGenerate);
   $('reset-btn').addEventListener('click', onReset);
   $('download-pdf').addEventListener('click', onDownloadPDF);
+  $('logout-btn').addEventListener('click', onLogout);
   $('end-chapter').addEventListener('change', populateEndVerses);
 });
 
