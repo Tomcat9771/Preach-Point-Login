@@ -55,7 +55,12 @@ document.getElementById('btnSignin').onclick = async () => {
   try {
     await signInWithEmailAndPassword(auth, emailEl.value, passEl.value);
     location.href = '/index.html';
-  } catch (e) { alert(e.message || e); }
+  } catch (e) {
+    const msg = e.code === 'auth/invalid-credential'
+      ? 'User not Subscribed. Please create account'
+      : (e.message || e);
+    alert(msg);
+  }
 };
 document.getElementById('btnSignout').onclick = async () => {
   await signOut(auth);
