@@ -36,7 +36,12 @@ onAuthStateChanged(auth, (user) => {
     // Stay on the login page, but let the user enter the app if desired
     const el = document.getElementById('msg');
     if (el) {
-      el.innerHTML = "You're already signed in. <a href='/index.html'>Enter App</a>";
+      el.textContent = "You're already signed in.";
+      const btn = document.createElement('button');
+      btn.className = 'secondary';
+      btn.textContent = 'Enter App';
+      btn.onclick = () => location.href = '/index.html';
+      el.appendChild(btn);
     }
   } else {
     setText('msg', 'Not signed in.');
