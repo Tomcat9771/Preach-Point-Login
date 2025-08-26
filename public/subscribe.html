@@ -4,15 +4,24 @@
   <meta charset="utf-8" />
   <title>Preach Point — Subscribe</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>Subscription required</h1>
-  <p>You need an active subscription to access Preach Point.</p>
-  <button id="subscribeBtn">Subscribe — R99 / month</button>
-  <p><a href="/login.html">Return to login</a></p>
+  <div class="container">
+    <header class="app-title">
+      <img id="logo" src="/logo.png" alt="Preach Point Logo" />
+    </header>
+
+    <h1>Subscription required</h1>
+    <p>You need an active subscription to access Preach Point.</p>
+    <div class="actions">
+      <button id="subscribeBtn">Subscribe — R99 / month</button>
+      <button id="loginBtn">Return to login</button>
+    </div>
+  </div>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-    import { getAuth, onAuthStateChanged, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyB6mjVxBIW8d2dMD6jRe9MD257qsNC2Ia0",
@@ -26,13 +35,17 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    await setPersistence(auth, inMemoryPersistence);
+    await setPersistence(auth, browserLocalPersistence);
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) {
         location.href = '/login.html';
       }
     });
+
+    document.getElementById('loginBtn').onclick = () => {
+      location.href = '/login.html';
+    };
 
     document.getElementById('subscribeBtn').onclick = async () => {
       try {
