@@ -47,7 +47,8 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    alert('Account created & signed in.');
+    alert('Account created & signed in. You must complete payment before accessing the app.');
+    location.href = '/subscribe.html';
   } catch (e) { alert(e.message || e); }
 };
 document.getElementById('btnSignin').onclick = async () => {
