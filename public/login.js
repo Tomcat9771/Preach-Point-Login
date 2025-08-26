@@ -3,7 +3,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/fireba
 import {
   getAuth, onAuthStateChanged,
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-  setPersistence, inMemoryPersistence
+  setPersistence, browserLocalPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-auth.js";
 
 // Firebase config (your project)
@@ -19,7 +19,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-await setPersistence(auth, inMemoryPersistence);
+await setPersistence(auth, browserLocalPersistence);
 window.__auth = auth; // let other scripts use token if needed
 
 // ===== helpers =====
