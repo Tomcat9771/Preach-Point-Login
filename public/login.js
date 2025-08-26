@@ -47,14 +47,20 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    alert('Account created & signed in.');
+    alert('Account created & signed in. You must complete payment before accessing the app.');
+    location.href = '/subscribe.html';
   } catch (e) { alert(e.message || e); }
 };
 document.getElementById('btnSignin').onclick = async () => {
   try {
     await signInWithEmailAndPassword(auth, emailEl.value, passEl.value);
     location.href = '/index.html';
-  } catch (e) { alert(e.message || e); }
+  } catch (e) {
+    const msg = e.code === 'auth/invalid-credential'
+      ? 'User not Subscribed. Please create account'
+      : (e.message || e);
+    alert(msg);
+  }
 };
 document.getElementById('btnSignout').onclick = async () => {
   await signOut(auth);
