@@ -1,106 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Preach Point — Login</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Google Fonts only (no local .ttf requests) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
-
-  <style>
-    :root{
-      --pp-purple:#641a7a; --pp-deep:#4a0e5e; --pp-accent:#ffcc33;
-      --pp-card:#ffffff; --pp-text:#1a1a1a; --pp-muted:#7a7a7a;
-    }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0; font-family:"Lato", system-ui, Arial, sans-serif; color:var(--pp-text);
-      background: radial-gradient(1200px 700px at 70% -20%, #7f2b99 0, var(--pp-purple) 35%, #3b0c4e 100%);
-    }
-    .brand-bar{ background:var(--pp-deep); color:#fff; padding:14px 18px;
-      display:flex; align-items:center; gap:14px; justify-content:center;
-      border-bottom:2px solid rgba(255,255,255,.12); }
-    .brand-bar h1{ margin:0; font-size:18px; letter-spacing:.08em; text-transform:uppercase; color:var(--pp-accent); }
-    .logo-wrap{ display:flex; align-items:center; gap:10px; }
-    .logo-wrap img{ height:44px; display:block; }
-    .container{ max-width: 880px; margin: 32px auto 48px; padding: 0 16px; }
-    .hero{ text-align:center; color:#fff; margin-bottom:18px; }
-    .hero-title{ font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--pp-accent); margin:8px 0 6px; font-size:28px; }
-    .hero-sub{ opacity:.9; font-size:14px; }
-    .cards{ display:grid; grid-template-columns: 1fr; gap:16px; }
-    @media (min-width: 880px){ .cards{ grid-template-columns: 1.1fr 0.9fr; } }
-    .card{ background:var(--pp-card); border-radius:14px; padding:18px; box-shadow:0 10px 30px rgba(0,0,0,.12); border:1px solid rgba(0,0,0,.06); }
-    .card h3{ margin:0 0 10px; font-size:18px; }
-    .muted{ color:var(--pp-muted); font-size:13px; }
-    label{ display:block; font-size:14px; margin-top:10px; }
-    input{ width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; margin-top:6px; font-size:15px; outline:none; }
-    input:focus{ border-color:#9653b6; box-shadow:0 0 0 3px rgba(150,83,182,.2); }
-    .row{ display:flex; gap:10px; flex-wrap:wrap; }
-    button{ padding:10px 14px; border-radius:10px; border:1px solid #222; background:#111; color:#fff; cursor:pointer; font-weight:700; }
-    button.secondary{ background:#fff; color:#111; border:1px solid #222; }
-    button.accent{ background:var(--pp-accent); color:#3a2a00; border-color:#b38a00; text-shadow:0 1px 0 rgba(255,255,255,.35); }
-    button:disabled{ opacity:.6; cursor:not-allowed; }
-    pre{ background:#f7f7f7; padding:12px; border-radius:10px; overflow:auto; max-height:240px; border:1px solid #eee; }
-    #gateStatus{ font-size:14px; }
-  </style>
+  <link rel="stylesheet" href="/style.css" />
 </head>
-
 <body>
-  <!-- brand strip -->
-  <div class="brand-bar">
-    <div class="logo-wrap">
-      <!-- Place your shield logo in /public/img/shield.png (optional) -->
-      <!-- <img src="/img/shield.png" alt="Shields Consulting"> -->
-      <h1>Shields Consulting</h1>
-      <img src="/img/preachpoint.png" alt="Preach Point" style="height:28px; filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))">
-    </div>
-  </div>
-
   <div class="container">
+    <header class="app-title">
+      <img id="logo" src="/logo.png" alt="Preach Point Logo" />
+    </header>
 
-    <div class="hero">
-      <div class="hero-title">Preach Point</div>
-      <div class="hero-sub">Login & Subscription</div>
-      <p id="msg" style="margin: 6px 0 0 0;">Not signed in.</p>
+    <h1>Login & Subscription</h1>
+    <p id="msg">Not signed in.</p>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" required />
+
+    <label for="pass">Password</label>
+    <input id="pass" type="password" autocomplete="current-password" required />
+
+    <div class="actions">
+      <button id="btnSignup">Create account</button>
+      <button id="btnSignin">Sign in</button>
+      <button id="btnSignout">Sign out</button>
     </div>
 
-    <div class="cards">
-      <!-- Left column: Sign in + Status -->
-      <div class="card">
-        <h3>Create account / Sign in</h3>
-        <label>Email <input id="email" type="email" autocomplete="email" required /></label>
-        <label>Password <input id="pass" type="password" autocomplete="current-password" required /></label>
-        <div class="row" style="margin-top:10px;">
-          <button id="btnSignup" class="secondary">Create account</button>
-          <button id="btnSignin" class="accent">Sign in</button>
-          <button id="btnSignout" class="secondary">Sign out</button>
-        </div>
-
-        <hr style="margin:18px 0; border:none; border-top:1px solid #eee;">
-        <h3>Your status</h3>
-        <div class="row">
-          <button id="btnMe" class="secondary">Check /api/me</button>
-        </div>
-        <pre id="meBox">{}</pre>
+    <div id="gate" hidden>
+      <h2>Access</h2>
+      <p id="gateStatus">Checking subscription…</p>
+      <div class="actions">
+        <button id="enterAppBtn" hidden>Enter App</button>
+        <button id="subscribeBtn" hidden>Subscribe — R99 / month</button>
       </div>
-
-      <!-- Right column: Access gate + Subscribe -->
-      <div class="card" id="gate" style="display:none">
-        <h3>Access</h3>
-        <p id="gateStatus" class="muted">Checking subscription…</p>
-        <div class="row">
-          <button id="enterAppBtn" class="secondary" style="display:none">Enter App</button>
-          <button id="subscribeBtn" class="accent" style="display:none">Subscribe — R99 / month</button>
-        </div>
-        <p class="muted" style="margin-top:10px;">Payments are processed securely via PayFast (sandbox while testing).</p>
-      </div>
+      <p>Payments are processed securely via PayFast (sandbox while testing).</p>
     </div>
   </div>
 
-  <!-- App logic (gating + subscribe flow) -->
   <script src="/popup.js"></script>
   <script type="module" src="/login.js"></script>
 </body>
 </html>
+
