@@ -189,7 +189,7 @@ async function populateChapters() {
   try {
     js = await safeFetchJson(`/api/chapters?book=${encodeURIComponent(bookName)}`);
   } catch (err) {
-    alert(`Could not load chapters: ${err.message}`);
+    ppAlert(`Could not load chapters: ${err.message}`);
     return;
   }
 
@@ -220,7 +220,7 @@ async function populateVerses() {
       `/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${chap}`
     );
   } catch (err) {
-    alert(`Could not load verses: ${err.message}`);
+    ppAlert(`Could not load verses: ${err.message}`);
     return;
   }
 
@@ -247,7 +247,7 @@ async function populateEndVerses() {
       `/api/versesCount?book=${encodeURIComponent(bookName)}&chapter=${endChap}`
     );
   } catch (err) {
-    alert(`Could not load verses: ${err.message}`);
+    ppAlert(`Could not load verses: ${err.message}`);
     return;
   }
 
@@ -345,7 +345,7 @@ async function onGenerate() {
   const lvl      = $('level').value;
 
   if (!bookName || !sCh || !sV) {
-    alert('Please select a book, chapter & verse.');
+    ppAlert('Please select a book, chapter & verse.');
     return;
   }
 
@@ -398,7 +398,7 @@ async function onGenerate() {
 
     const maxLimit = 50;
     if (totalVerses > maxLimit) {
-      alert(`Please limit your selection to ${maxLimit} verses. You selected ${totalVerses}.`);
+      ppAlert(`Please limit your selection to ${maxLimit} verses. You selected ${totalVerses}.`);
       return;
     }
   } catch (e) {
