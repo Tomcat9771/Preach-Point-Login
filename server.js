@@ -711,7 +711,7 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 // 9️⃣ Endpoint: AI-only commentary
-app.post('/api/commentary', requireAuth, requireSubscriberDb, async (req, res) => {
+app.post('/api/commentary', async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, tone, level, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -752,7 +752,7 @@ const passageRef = `${afRefBook} ${startChapter}:${startVerse}-${endChapter || s
   }
 });
 // 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion',  requireAuth, requireSubscriberDb, async (req, res) => {
+app.post('/api/devotion',  async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -801,7 +801,7 @@ ${scripture}`;
 
 
 // 🔟 Endpoint: AI-only prayer
-app.post('/api/prayer',    requireAuth, requireSubscriberDb, async (req, res) => {
+app.post('/api/prayer',    async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {

@@ -424,7 +424,7 @@ async function onGenerate() {
     return; // stop further steps if verses fail
   }
 
-  // 2) Commentary (protected)
+  // 2) Commentary
   try {
     const js2 = await safeFetchJson('/api/commentary', {
       method: 'POST',
@@ -440,7 +440,7 @@ async function onGenerate() {
     $('commentary').textContent = `Error: ${e.message}`;
   }
 
-  // 3) Devotion (protected)
+  // 3) Devotion
   try {
     const jsD = await safeFetchJson('/api/devotion', {
       method: 'POST',
@@ -452,7 +452,7 @@ async function onGenerate() {
     $('devotionOutput').textContent = `Error: ${e.message}`;
   }
 
-  // 4) Prayer (protected)
+  // 4) Prayer
   try {
     const js3 = await safeFetchJson('/api/prayer', {
       method: 'POST',
