@@ -24,36 +24,15 @@ window.__auth = auth; // let other scripts use token if needed
 
 // ===== helpers =====
 function setText(id, t){ const el=document.getElementById(id); if (el) el.textContent=t; }
-function apiBase(){
-  // For WordPress embedding, swap to your deployed origin:
-  // return 'https://preach-point-login.vercel.app';
-  return ''; // same-origin while running locally
-}
-async function authFetch(url, opts = {}) {
-  const headers = { ...(opts.headers || {}) };
-  if (auth.currentUser) {
-    const t = await auth.currentUser.getIdToken(true);
-    headers.Authorization = `Bearer ${t}`;
-  }
-  return fetch(apiBase()+url, { ...opts, headers });
-}
-async function authFetchJson(url, opts = {}) {
-  const res = await authFetch(url, { ...opts, headers:{ ...(opts.headers||{}), 'Content-Type':'application/json' } });
-  const txt = await res.text();
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${txt}`);
-  return txt ? JSON.parse(txt) : null;
-}
 
 // ===== UI refs =====
 const msg     = document.getElementById('msg');
 const emailEl = document.getElementById('email');
 const passEl  = document.getElementById('pass');
-const meBox   = document.getElementById('meBox');
 
 // ===== auth state =====
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    setText('msg', `Signed in as ${user.email}`);
     location.href = '/index.html';
   } else {
     setText('msg', 'Not signed in.');
@@ -76,8 +55,4 @@ document.getElementById('btnSignin').onclick = async () => {
 document.getElementById('btnSignout').onclick = async () => {
   await signOut(auth);
   alert('Signed out.');
-};
-document.getElementById('btnMe').onclick = async () => {
-  try { meBox.textContent = JSON.stringify(await authFetchJson('/api/me'), null, 2); }
-  catch (e) { meBox.textContent = String(e); }
 };
