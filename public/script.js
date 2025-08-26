@@ -43,12 +43,18 @@ async function safeFetchJson(url, opts = {}) {
 // ─── Auth gate on app load ─────────────────────────────────────
 (async function guardAccess() {
   const appEl = document.getElementById('app');
+
+  // Wait until Firebase Auth is available on window
+  while (!window.__auth) {
+    await new Promise(r => setTimeout(r, 50));
+  }
   const auth = window.__auth;
+
   try {
     // Wait for Firebase Auth to settle before proceeding
-    if (auth?.authStateReady) {
+    if (auth.authStateReady) {
       await auth.authStateReady();
-    } else if (auth?.onAuthStateChanged) {
+    } else if (auth.onAuthStateChanged) {
       await new Promise((resolve) => {
         const unsub = auth.onAuthStateChanged(() => {
           unsub();
@@ -57,14 +63,14 @@ async function safeFetchJson(url, opts = {}) {
       });
     }
 
-    const headers = new Headers();
-    const user = auth?.currentUser;
+    const user = auth.currentUser;
     if (!user) {
       // Still not signed in → go to login page file
       location.href = '/login.html';
       return;
     }
 
+    const headers = new Headers();
     const t = await user.getIdToken(false);
     headers.set('Authorization', `Bearer ${t}`);
     const r = await fetch('/api/me', { headers });
