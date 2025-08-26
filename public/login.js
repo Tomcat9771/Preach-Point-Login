@@ -33,7 +33,11 @@ const passEl  = document.getElementById('pass');
 // ===== auth state =====
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    location.href = '/index.html';
+    // Stay on the login page, but let the user enter the app if desired
+    const el = document.getElementById('msg');
+    if (el) {
+      el.innerHTML = "You're already signed in. <a href='/index.html'>Enter App</a>";
+    }
   } else {
     setText('msg', 'Not signed in.');
   }
