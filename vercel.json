@@ -21,5 +21,8 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "FIREBASE_SERVICE_ACCOUNT_BASE64": "@firebase-service-account-base64"
+  }
 }
