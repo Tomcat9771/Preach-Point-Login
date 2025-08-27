@@ -51,9 +51,9 @@ export function md5Hex(s) {
   return crypto.createHash("md5").update(s, "utf8").digest("hex");
 }
 
-/** Build signed fields + auto-submit HTML (sandbox by default) */
+/** Build signed fields + auto-submit HTML (live by default) */
 export function buildPayfastForm({
-  mode = "sandbox",
+  mode = "live",
   merchant_id,
   merchant_key,
   return_url,
