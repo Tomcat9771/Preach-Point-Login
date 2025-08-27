@@ -41,23 +41,6 @@ onAuthStateChanged(auth, async (user) => {
       btn.textContent = 'Enter App';
       btn.onclick = () => location.href = '/index.html';
       el.appendChild(btn);
-
-      // Show trial info if available
-      try {
-        const t = await user.getIdToken(false);
-        const r = await fetch('/api/me', { headers: { Authorization: `Bearer ${t}` } });
-        if (r.ok) {
-          const me = await r.json();
-          if (me.trialActive && me.trialEnds) {
-            const days = Math.ceil((new Date(me.trialEnds).getTime() - Date.now()) / (1000*60*60*24));
-            const p = document.createElement('p');
-            p.textContent = `Trial: ${days} day${days !== 1 ? 's' : ''} remaining`;
-            el.appendChild(p);
-          }
-        }
-      } catch (err) {
-        console.warn('fetch /api/me failed', err);
-      }
     }
   } else {
     setText('msg', 'Not signed in.');
@@ -68,13 +51,7 @@ onAuthStateChanged(auth, async (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    try {
-      const t = await auth.currentUser.getIdToken(false);
-      await fetch('/api/trial', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
-    } catch (err) {
-      console.warn('Could not start trial:', err);
-    }
-    ppAlert('Account created & signed in. Your free trial has started. Billing begins after the 7-day trial.');
+    ppAlert('Account created & signed in. Please subscribe to continue.');
     location.href = '/subscribe.html';
   } catch (e) {
     const msg = e.code === 'auth/email-already-in-use'
