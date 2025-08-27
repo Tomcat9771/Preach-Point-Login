@@ -78,7 +78,33 @@ const app = express();
 
 // CSP/headers handled by Vercel (see vercel.json)
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'", "https://www.gstatic.com", "https://www.googletagmanager.com", "https://cdnjs.cloudflare.com"],
+      styleSrc:   ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc:    ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc:     ["'self'", "data:", "https://*"],
+      // 👇 allow Firebase Auth + related endpoints
+      connectSrc: [
+        "'self'",
+        "https://preach-point-login.vercel.app",
+        "https://www.payfast.co.za",
+        "https://identitytoolkit.googleapis.com",
+        "https://securetoken.googleapis.com",
+        "https://www.googleapis.com",
+        "https://firebaseinstallations.googleapis.com",
+        "https://firestore.googleapis.com",
+        "https://*.firebaseio.com"
+      ],
+      frameSrc:   ["https://www.payfast.co.za"],
+      formAction: [
+        "'self'",
+        "https://www.payfast.co.za/eng/process",
+        "https://sandbox.payfast.co.za/eng/process"
+      ]
+    }
+  },
   crossOriginEmbedderPolicy: false
 }));
 
