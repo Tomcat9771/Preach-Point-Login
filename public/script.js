@@ -82,11 +82,10 @@ async function safeFetchJson(url, opts = {}) {
 
     if (r.ok) {
       const me = await r.json();
-      if (me?.subscriber) {
+      if (me?.subscriber || me?.trialActive) {
         if (appEl) appEl.hidden = false;
         return;
       }
-      // Not subscribed → redirect to subscribe page
       location.href = '/subscribe.html';
       return;
     }
