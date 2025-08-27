@@ -168,7 +168,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
   res.set('Cache-Control', 'no-store, max-age=0');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
-  const { uid, email } = req.user || {};
+  const { uid } = req.user || {};
   let subscriber = false;
 
   try {
@@ -181,11 +181,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
     console.warn('me: firestore read failed', e.message);
   }
 
-  res.json({
-    uid,
-    email,
-    subscriber
-  });
+  res.json({ subscriber });
 });
 
 // ---- DEBUG: show masked PayFast/Firebase envs (no secrets) --------------------
