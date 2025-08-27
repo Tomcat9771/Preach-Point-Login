@@ -76,7 +76,7 @@ if (sa) {
 // ─── App setup (create app ONCE, then middlewares) ────────────────────────────
 const app = express();
 
-// CSP/headers handled by Vercel (see vercel.json)
+// CSP/headers (fixes the “default-src 'none'” font issue locally)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -98,7 +98,11 @@ app.use(helmet({
         "https://*.firebaseio.com"
       ],
       frameSrc:   ["https://www.payfast.co.za"],
-      formAction: ["'self'", "https://www.payfast.co.za", "https://sandbox.payfast.co.za"]
+      formAction: [
+        "'self'",
+        "https://www.payfast.co.za/eng/process",
+        "https://sandbox.payfast.co.za/eng/process"
+      ]
     }
   },
   crossOriginEmbedderPolicy: false
