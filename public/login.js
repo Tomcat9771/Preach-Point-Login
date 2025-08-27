@@ -74,8 +74,8 @@ document.getElementById('btnSignup').onclick = async () => {
     } catch (err) {
       console.warn('Could not start trial:', err);
     }
-    ppAlert('Account created & signed in. Your free trial has started.');
-    location.href = '/index.html';
+    ppAlert('Account created & signed in. Your free trial has started. Billing begins after the 7-day trial.');
+    location.href = '/subscribe.html';
   } catch (e) {
     const msg = e.code === 'auth/email-already-in-use'
       ? 'Email already in use'
