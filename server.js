@@ -90,6 +90,7 @@ app.use(helmet({
         "'self'",
         "https://preach-point-login.vercel.app",
         "https://www.payfast.co.za",
+        "https://sandbox.payfast.co.za",
         "https://identitytoolkit.googleapis.com",
         "https://securetoken.googleapis.com",
         "https://www.googleapis.com",
@@ -97,7 +98,7 @@ app.use(helmet({
         "https://firestore.googleapis.com",
         "https://*.firebaseio.com"
       ],
-      frameSrc:   ["https://www.payfast.co.za"],
+      frameSrc:   ["https://www.payfast.co.za", "https://sandbox.payfast.co.za"],
       formAction: [
         "'self'",
         "https://www.payfast.co.za",
