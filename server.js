@@ -33,7 +33,9 @@ async function loadServiceAccount() {
   if (b64) {
     try {
       const raw = Buffer.from(b64, 'base64').toString('utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      console.log('Firebase service account loaded from base64 env');
+      return parsed;
     } catch (e) {
       console.error('❌ Failed to decode *_SERVICE_ACCOUNT_BASE64:', e.message);
     }
@@ -42,12 +44,15 @@ async function loadServiceAccount() {
   if (jsonPath) {
     try {
       const raw = await fs.readFile(jsonPath, 'utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      console.log(`Firebase service account loaded from ${jsonPath}`);
+      return parsed;
     } catch (e) {
       console.error(`❌ Failed to read SERVICE_ACCOUNT_JSON at ${jsonPath}:`, e.message);
     }
   }
 
+  console.warn('⚠️  No Firebase service account env vars found');
   return null; // allow server to run without admin (local dev)
 }
 
@@ -58,6 +63,7 @@ const sa = await loadServiceAccount();
 if (sa) {
   try {
     if (!admin.apps.length) {
+      console.log('Initializing Firebase Admin...');
       admin.initializeApp({
         credential: admin.credential.cert(sa),
         projectId: process.env.FIREBASE_PROJECT_ID || sa.project_id,
@@ -65,12 +71,18 @@ if (sa) {
     }
     auth = admin.auth();
     db   = admin.firestore();
-    console.log('✅ Firebase Admin initialized');
+    const proj = admin.app().options.projectId || sa.project_id;
+    console.log(`✅ Firebase Admin initialized for project ${proj}`);
   } catch (e) {
     console.error('❌ Firebase Admin init error:', e.message);
   }
 } else {
-  console.warn('⚠️  No service account provided. Admin-only routes will be limited.');
+  const msg = 'No Firebase service account provided. Set FIREBASE_SERVICE_ACCOUNT_BASE64 or SERVICE_ACCOUNT_JSON.';
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(msg);
+  } else {
+    console.warn(`⚠️  ${msg} Admin-only routes will be limited.`);
+  }
 }
 
 // ─── App setup (create app ONCE, then middlewares) ────────────────────────────
