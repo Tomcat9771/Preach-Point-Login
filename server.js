@@ -98,7 +98,11 @@ app.use(helmet({
         "https://*.firebaseio.com"
       ],
       frameSrc:   ["https://www.payfast.co.za"],
-      formAction: ["'self'", "https://www.payfast.co.za"]
+      formAction: [
+        "'self'",
+        "https://www.payfast.co.za/eng/process",
+        "https://sandbox.payfast.co.za/eng/process"
+      ]
     }
   },
   crossOriginEmbedderPolicy: false
