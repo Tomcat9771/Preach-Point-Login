@@ -8,7 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script defer src="popup.js"></script>
-  <script defer src="script.js"></script>
+  <script defer src="app.js"></script>
 </head>
 <link rel="icon" type="image/png" href="/favicon.png">
 <script type="module">
@@ -27,7 +27,7 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  window.__auth = auth; // expose to script.js
+  window.__auth = auth; // expose to app.js
 
   onAuthStateChanged(auth, (user) => {
     // Optional: show a small banner if not signed in
@@ -52,7 +52,7 @@
     measurementId: "G-3L6CZ43J51"
   };
   const app  = initializeApp(firebaseConfig);
-  window.__auth = getAuth(app); // <- used by script.js safeFetchJson / guardAccess
+  window.__auth = getAuth(app); // <- used by app.js safeFetchJson / guardAccess
 </script>
 
   <!-- Keep the app hidden until /api/me says OK -->
