@@ -14,7 +14,29 @@
 
     <h1>Thank you!</h1>
     <p>Your payment was received.</p>
+    <p id="status">Verifying payment…</p>
     <button onclick="location.href='/'">Back to Preach Point</button>
   </div>
+  <script>
+    async function checkSubscription() {
+      try {
+        const res = await fetch('/api/me');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.subscriber) {
+            window.location.href = '/index.html';
+            return;
+          }
+        }
+      } catch (e) {
+        // Ignore network errors and keep polling
+      }
+      setTimeout(checkSubscription, 2000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      checkSubscription();
+    });
+  </script>
 </body>
 </html>
