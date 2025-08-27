@@ -82,7 +82,7 @@ async function safeFetchJson(url, opts = {}) {
 
     if (r.ok) {
       const me = await r.json();
-      if (me?.subscriber || me?.trialActive) {
+      if (me?.subscriber) {
         if (appEl) appEl.hidden = false;
         return;
       }
