@@ -31,9 +31,8 @@ const emailEl = document.getElementById('email');
 const passEl  = document.getElementById('pass');
 
 // ===== auth state =====
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
-    // Stay on the login page, but let the user enter the app if desired
     const el = document.getElementById('msg');
     if (el) {
       el.textContent = "You're already signed in.";
@@ -52,7 +51,7 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    ppAlert('Account created & signed in. You must complete payment before accessing the app.');
+    ppAlert('Account created & signed in.');
     location.href = '/subscribe.html';
   } catch (e) {
     const msg = e.code === 'auth/email-already-in-use'

@@ -86,7 +86,6 @@ async function safeFetchJson(url, opts = {}) {
         if (appEl) appEl.hidden = false;
         return;
       }
-      // Not subscribed → redirect to subscribe page
       location.href = '/subscribe.html';
       return;
     }
