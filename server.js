@@ -19,7 +19,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 dotenv.config();
 
 // PayFast passphrase: include only in live mode
-const PAYFAST_PASS = process.env.PAYFAST_MODE === 'live'
+const PAYFAST_PASS = (process.env.PAYFAST_MODE || 'live') === 'live'
   ? (process.env.PAYFAST_PASSPHRASE || '')
   : '';
 
@@ -89,7 +89,7 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         "https://preach-point-login.vercel.app",
-        "https://sandbox.payfast.co.za",
+        "https://www.payfast.co.za",
         "https://identitytoolkit.googleapis.com",
         "https://securetoken.googleapis.com",
         "https://www.googleapis.com",
@@ -97,8 +97,12 @@ app.use(helmet({
         "https://firestore.googleapis.com",
         "https://*.firebaseio.com"
       ],
-      frameSrc:   ["https://sandbox.payfast.co.za", "https://www.payfast.co.za"],
-      formAction: ["'self'", "https://sandbox.payfast.co.za", "https://www.payfast.co.za"]
+      frameSrc:   ["https://www.payfast.co.za"],
+      formAction: [
+        "'self'",
+        "https://www.payfast.co.za",
+        "https://sandbox.payfast.co.za"
+      ]
     }
   },
   crossOriginEmbedderPolicy: false
@@ -139,15 +143,25 @@ function requireAuth(req, res, next) {
   if (!req.user?.uid) return res.status(401).json({ error: 'Sign in required' });
   next();
 }
-async function requireSubscriberDb(req, res, next) {
+
+// Allow access if the user is a subscriber OR has an active trial
+async function requireSubOrTrial(req, res, next) {
   if (!req.user?.uid) return res.status(401).json({ error: 'Sign in required' });
   try {
     const snap = await db.doc(`users/${req.user.uid}`).get();
-    if (snap.exists && !!snap.data()?.subscriber) return next();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      const subscriber = !!data.subscriber;
+      const trialEnd = data.trialEnds instanceof admin.firestore.Timestamp
+        ? data.trialEnds.toDate()
+        : data.trialEnds ? new Date(data.trialEnds) : null;
+      const trialActive = trialEnd && trialEnd.getTime() > Date.now();
+      if (subscriber || trialActive) return next();
+    }
   } catch (e) {
-    console.warn('requireSubscriberDb read failed:', e.message);
+    console.warn('requireSubOrTrial read failed:', e.message);
   }
-  return res.status(402).json({ error: 'Subscription required' });
+  return res.status(402).json({ error: 'Subscription or trial required' });
 }
 
 app.use(authOptional);
@@ -167,16 +181,55 @@ app.get('/api/me', requireAuth, async (req, res) => {
   res.set('Expires', '0');
   const { uid, email } = req.user || {};
   let subscriber = false;
+  let trialEnds = null;
+  let trialActive = false;
 
   try {
-    // use your existing Firestore instance (db)
     const snap = await db.doc(`users/${uid}`).get();
-    if (snap.exists) subscriber = !!snap.data()?.subscriber;
+    if (snap.exists) {
+      const data = snap.data() || {};
+      subscriber = !!data.subscriber;
+      if (data.trialEnds instanceof admin.firestore.Timestamp) {
+        trialEnds = data.trialEnds.toDate();
+      } else if (data.trialEnds) {
+        trialEnds = new Date(data.trialEnds);
+      }
+      if (trialEnds) trialActive = trialEnds.getTime() > Date.now();
+    }
   } catch (e) {
     console.warn('me: firestore read failed', e.message);
   }
 
-  res.json({ uid, email, subscriber });
+  res.json({
+    uid,
+    email,
+    subscriber,
+    trialEnds: trialEnds ? trialEnds.toISOString() : null,
+    trialActive
+  });
+});
+
+// Set up a 7-day trial for the signed-in user (if not already present)
+app.post('/api/trial', requireAuth, async (req, res) => {
+  try {
+    const { uid } = req.user;
+    const ref = db.doc(`users/${uid}`);
+    const snap = await ref.get();
+    let trialEnds;
+    if (snap.exists && snap.data()?.trialEnds) {
+      const existing = snap.data().trialEnds;
+      trialEnds = existing instanceof admin.firestore.Timestamp ? existing.toDate() : new Date(existing);
+    } else {
+      const now = admin.firestore.Timestamp.now();
+      const endTs = admin.firestore.Timestamp.fromMillis(now.toMillis() + 7 * 24 * 60 * 60 * 1000);
+      await ref.set({ trialEnds: endTs }, { merge: true });
+      trialEnds = endTs.toDate();
+    }
+    res.json({ trialEnds: trialEnds.toISOString(), trialActive: trialEnds.getTime() > Date.now() });
+  } catch (e) {
+    console.error('trial start failed:', e);
+    res.status(500).json({ error: e.message || 'Could not start trial' });
+  }
 });
 
 // ---- DEBUG: show masked PayFast/Firebase envs (no secrets) --------------------
@@ -202,7 +255,7 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
   // Allow opening this endpoint from a file:// or different origin while testing
   res.set('Access-Control-Allow-Origin', '*');
   try {
-    const mode   = (process.env.PAYFAST_MODE || 'sandbox').toLowerCase();
+    const mode   = (process.env.PAYFAST_MODE || 'live').toLowerCase();
     const isLive = mode === 'live';
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
@@ -461,13 +514,13 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     const { uid, email } = req.user || {};
     if (!uid) return res.status(401).json({ error: 'Sign in required' });
 
-    const isLive = process.env.PAYFAST_MODE === 'live';
+    const isLive = (process.env.PAYFAST_MODE || 'live') === 'live';
     const siteUrl = process.env.SITE_URL || `https://${req.headers.host}`;
     const price = '99.00'; // fixed monthly price
 
     // 2) Build the exact fields you will POST (in insertion order)
     const fields = {
-      merchant_id: process.env.PAYFAST_MERCHANT_ID,   // e.g. 10041319 (your sandbox)
+      merchant_id: process.env.PAYFAST_MERCHANT_ID,   // e.g. 10041319
       merchant_key: process.env.PAYFAST_MERCHANT_KEY, // e.g. 26zrknv5myxxx
       return_url: `${siteUrl}/subscribe/success`,
       cancel_url: `${siteUrl}/subscribe/cancel`,
@@ -478,7 +531,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
       item_name: 'Preach Point Monthly',
       custom_str1: uid,
       subscription_type: '1',
-      billing_date: new Date(Date.now() + 24*60*60*1000).toISOString().slice(0,10),
+        billing_date: new Date(Date.now() + 7*24*60*60*1000).toISOString().slice(0,10),
 
       recurring_amount: price,
       frequency: '3', // monthly
@@ -516,7 +569,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
 
 //------------------------------------------------------------------------------
 async function validateWithPayFast(paramStrNoPassphrase) {
-  const isLive = process.env.PAYFAST_MODE === 'live';
+  const isLive = (process.env.PAYFAST_MODE || 'live') === 'live';
   const url = isLive
     ? 'https://www.payfast.co.za/eng/query/validate'
     : 'https://sandbox.payfast.co.za/eng/query/validate';
@@ -668,7 +721,7 @@ app.get('/api/versesCount', (req, res) => {
 });
 
 // 7️⃣ Endpoint: fetch bible text (single or multi-chapter)
-app.post('/api/verses', (req, res) => {
+app.post('/api/verses', requireSubOrTrial, (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -688,7 +741,7 @@ app.post('/api/verses', (req, res) => {
 });
 
 // 8️⃣ Endpoint: translate into Afrikaans
-app.post('/api/translate', async (req, res) => {
+app.post('/api/translate', requireSubOrTrial, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -714,7 +767,7 @@ app.post('/api/translate', async (req, res) => {
   }
 });
 // 9️⃣ Endpoint: AI-only commentary
-app.post('/api/commentary', async (req, res) => {
+app.post('/api/commentary', requireSubOrTrial, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, tone, level, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -755,7 +808,7 @@ const passageRef = `${afRefBook} ${startChapter}:${startVerse}-${endChapter || s
   }
 });
 // 9.5️⃣ Endpoint: AI-only devotion
-app.post('/api/devotion',  async (req, res) => {
+app.post('/api/devotion',  requireSubOrTrial, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
@@ -804,7 +857,7 @@ ${scripture}`;
 
 
 // 🔟 Endpoint: AI-only prayer
-app.post('/api/prayer',    async (req, res) => {
+app.post('/api/prayer',    requireSubOrTrial, async (req, res) => {
   try {
     const { book, startChapter, startVerse, endChapter, endVerse, lang } = req.body;
     if (!book || !startChapter || !startVerse) {
