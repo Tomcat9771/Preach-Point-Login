@@ -121,11 +121,14 @@ app.get('/', (_req, res) => {
 async function authOptional(req, _res, next) {
   try {
     const hdr = req.headers.authorization || '';
-    const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : null;
+    const token = hdr.startsWith('Bearer ')
+      ? hdr.slice(7)
+      : (req.body?.token || req.query?.token);
     // Only verify if Admin Auth exists (local dev may run without service account)
     if (token && auth) {
       const decoded = await auth.verifyIdToken(token);
       req.user = decoded; // custom claims (e.g. subscriber)
+      if (req.body && req.body.token) delete req.body.token;
     }
   } catch {
     // ignore; unauthenticated requests just won't have req.user
