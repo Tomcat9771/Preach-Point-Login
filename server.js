@@ -18,10 +18,11 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 dotenv.config();
 
-// PayFast passphrase: include only in live mode
-const PAYFAST_PASS = process.env.PAYFAST_MODE === 'live'
-  ? (process.env.PAYFAST_PASSPHRASE || '')
-  : '';
+// PayFast credentials (live mode only)
+const PAYFAST_MODE = 'live';
+const PAYFAST_MERCHANT_ID = '14386702';
+const PAYFAST_MERCHANT_KEY = 'ot4o1omlggyse';
+const PAYFAST_PASS = 'Preachpoint9771';
 
 // ─── Firebase Admin bootstrap (resilient, single init) ────────────────────────
 async function loadServiceAccount() {
@@ -89,7 +90,7 @@ app.use(helmet({
       connectSrc: [
         "'self'",
         "https://preach-point-login.vercel.app",
-        "https://sandbox.payfast.co.za",
+        "https://www.payfast.co.za",
         "https://identitytoolkit.googleapis.com",
         "https://securetoken.googleapis.com",
         "https://www.googleapis.com",
@@ -97,8 +98,8 @@ app.use(helmet({
         "https://firestore.googleapis.com",
         "https://*.firebaseio.com"
       ],
-      frameSrc:   ["https://sandbox.payfast.co.za", "https://www.payfast.co.za"],
-      formAction: ["'self'", "https://sandbox.payfast.co.za", "https://www.payfast.co.za"]
+      frameSrc:   ["https://www.payfast.co.za"],
+      formAction: ["'self'", "https://www.payfast.co.za"]
     }
   },
   crossOriginEmbedderPolicy: false
@@ -183,9 +184,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
 app.get('/api/debug/env', (_req, res) => {
   const mask = v => (v ? (v.length > 6 ? v.slice(0,3) + '...' + v.slice(-3) : '***') : '(empty)');
   res.json({
-    PAYFAST_MODE: process.env.PAYFAST_MODE || '(unset)',
-    PAYFAST_MERCHANT_ID: process.env.PAYFAST_MERCHANT_ID || '(unset)',
-    PAYFAST_MERCHANT_KEY: mask(process.env.PAYFAST_MERCHANT_KEY),
+    PAYFAST_MODE: PAYFAST_MODE,
+    PAYFAST_MERCHANT_ID: PAYFAST_MERCHANT_ID,
+    PAYFAST_MERCHANT_KEY: mask(PAYFAST_MERCHANT_KEY),
     PAYFAST_PASSPHRASE: PAYFAST_PASS ? '(set)' : '(empty)',
     PAYFAST_RETURN_URL: process.env.PAYFAST_RETURN_URL || '(unset)',
     PAYFAST_CANCEL_URL: process.env.PAYFAST_CANCEL_URL || '(unset)',
@@ -202,7 +203,7 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
   // Allow opening this endpoint from a file:// or different origin while testing
   res.set('Access-Control-Allow-Origin', '*');
   try {
-    const mode   = (process.env.PAYFAST_MODE || 'sandbox').toLowerCase();
+    const mode   = PAYFAST_MODE.toLowerCase();
     const isLive = mode === 'live';
     const target = isLive
       ? 'https://www.payfast.co.za/eng/process'
@@ -214,8 +215,8 @@ app.get('/api/debug/subscribe-dry-run', (_req, res) => {
 
     const fields = {
       // Merchant details
-      merchant_id:   tidy(process.env.PAYFAST_MERCHANT_ID),
-      merchant_key:  tidy(process.env.PAYFAST_MERCHANT_KEY),
+      merchant_id:   tidy(PAYFAST_MERCHANT_ID),
+      merchant_key:  tidy(PAYFAST_MERCHANT_KEY),
       return_url:    tidy(process.env.PAYFAST_RETURN_URL),
       cancel_url:    tidy(process.env.PAYFAST_CANCEL_URL),
       notify_url:    tidy(process.env.PAYFAST_NOTIFY_URL),
@@ -461,14 +462,14 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
     const { uid, email } = req.user || {};
     if (!uid) return res.status(401).json({ error: 'Sign in required' });
 
-    const isLive = process.env.PAYFAST_MODE === 'live';
+    const isLive = PAYFAST_MODE === 'live';
     const siteUrl = process.env.SITE_URL || `https://${req.headers.host}`;
     const price = '99.00'; // fixed monthly price
 
     // 2) Build the exact fields you will POST (in insertion order)
     const fields = {
-      merchant_id: process.env.PAYFAST_MERCHANT_ID,   // e.g. 10041319 (your sandbox)
-      merchant_key: process.env.PAYFAST_MERCHANT_KEY, // e.g. 26zrknv5myxxx
+      merchant_id: PAYFAST_MERCHANT_ID,   // e.g. 14386702
+      merchant_key: PAYFAST_MERCHANT_KEY, // e.g. ot4o1omlggyse
       return_url: `${siteUrl}/subscribe/success`,
       cancel_url: `${siteUrl}/subscribe/cancel`,
       notify_url: `${siteUrl}/api/payfast/itn`,
@@ -516,7 +517,7 @@ app.post('/api/payfast/subscribe', requireAuth, async (req, res) => {
 
 //------------------------------------------------------------------------------
 async function validateWithPayFast(paramStrNoPassphrase) {
-  const isLive = process.env.PAYFAST_MODE === 'live';
+  const isLive = PAYFAST_MODE === 'live';
   const url = isLive
     ? 'https://www.payfast.co.za/eng/query/validate'
     : 'https://sandbox.payfast.co.za/eng/query/validate';

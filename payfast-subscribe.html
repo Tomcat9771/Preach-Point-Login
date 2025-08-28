@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>PayFast Sandbox Subscription</title></head>
+<head><meta charset="UTF-8"><title>PayFast Subscription</title></head>
 <body>
   <h3>Debug Info</h3>
-  <p><strong>Param String:</strong> merchant_id=10041319&merchant_key=26zrknv5myxxx&return_url=https%3A%2F%2Fwww.shieldsconsulting.co.za%2Fsubscribe%2Fsuccess&cancel_url=https%3A%2F%2Fwww.shieldsconsulting.co.za%2Fsubscribe%2Fcancel&notify_url=https%3A%2F%2Fpreach-point-login.vercel.app%2Fapi%2Fpayfast%2Fitn&m_payment_id=sub_001&amount=99.00&item_name=Preach+Point+Monthly&subscription_type=1&billing_date=2025-08-30&recurring_amount=99.00&frequency=3&cycles=0</p>
-  <p><strong>Signature:</strong> c4b37341ff1584eb4ebfc8008d442c0a</p>
+  <p><strong>Param String:</strong> merchant_id=14386702&merchant_key=ot4o1omlggyse&return_url=https%3A%2F%2Fwww.shieldsconsulting.co.za%2Fsubscribe%2Fsuccess&cancel_url=https%3A%2F%2Fwww.shieldsconsulting.co.za%2Fsubscribe%2Fcancel&notify_url=https%3A%2F%2Fpreach-point-login.vercel.app%2Fapi%2Fpayfast%2Fitn&m_payment_id=sub_001&amount=99.00&item_name=Preach+Point+Monthly&subscription_type=1&billing_date=2025-08-30&recurring_amount=99.00&frequency=3&cycles=0&passphrase=Preachpoint9771</p>
+  <p><strong>Signature:</strong> 2be5480b44c07ab23eb1c9eb2176e8ba</p>
 
-  <form action="https://sandbox.payfast.co.za/eng/process" method="post">
-    <input type="hidden" name="merchant_id" value="10041319" />
-    <input type="hidden" name="merchant_key" value="26zrknv5myxxx" />
+  <form action="https://www.payfast.co.za/eng/process" method="post">
+    <input type="hidden" name="merchant_id" value="14386702" />
+    <input type="hidden" name="merchant_key" value="ot4o1omlggyse" />
     <input type="hidden" name="return_url" value="https://www.shieldsconsulting.co.za/subscribe/success" />
     <input type="hidden" name="cancel_url" value="https://www.shieldsconsulting.co.za/subscribe/cancel" />
     <input type="hidden" name="notify_url" value="https://preach-point-login.vercel.app/api/payfast/itn" />
@@ -20,7 +20,7 @@
     <input type="hidden" name="recurring_amount" value="99.00" />
     <input type="hidden" name="frequency" value="3" />
     <input type="hidden" name="cycles" value="0" />
-    <input type="hidden" name="signature" value="c4b37341ff1584eb4ebfc8008d442c0a" />
+    <input type="hidden" name="signature" value="2be5480b44c07ab23eb1c9eb2176e8ba" />
     <button type="submit">Subscribe via PayFast</button>
   </form>
 </body>
