@@ -31,9 +31,8 @@ const emailEl = document.getElementById('email');
 const passEl  = document.getElementById('pass');
 
 // ===== auth state =====
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
-    // Stay on the login page, but let the user enter the app if desired
     const el = document.getElementById('msg');
     if (el) {
       el.textContent = "You're already signed in.";
@@ -42,6 +41,23 @@ onAuthStateChanged(auth, (user) => {
       btn.textContent = 'Enter App';
       btn.onclick = () => location.href = '/index.html';
       el.appendChild(btn);
+
+      // Show trial info if available
+      try {
+        const t = await user.getIdToken(false);
+        const r = await fetch('/api/me', { headers: { Authorization: `Bearer ${t}` } });
+        if (r.ok) {
+          const me = await r.json();
+          if (me.trialActive && me.trialEnds) {
+            const days = Math.ceil((new Date(me.trialEnds).getTime() - Date.now()) / (1000*60*60*24));
+            const p = document.createElement('p');
+            p.textContent = `Trial: ${days} day${days !== 1 ? 's' : ''} remaining`;
+            el.appendChild(p);
+          }
+        }
+      } catch (err) {
+        console.warn('fetch /api/me failed', err);
+      }
     }
   } else {
     setText('msg', 'Not signed in.');
@@ -52,7 +68,13 @@ onAuthStateChanged(auth, (user) => {
 document.getElementById('btnSignup').onclick = async () => {
   try {
     await createUserWithEmailAndPassword(auth, emailEl.value, passEl.value);
-    ppAlert('Account created & signed in. You must complete payment before accessing the app.');
+    try {
+      const t = await auth.currentUser.getIdToken(false);
+      await fetch('/api/trial', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
+    } catch (err) {
+      console.warn('Could not start trial:', err);
+    }
+    ppAlert('Account created & signed in. Your free trial has started. Billing begins after the 7-day trial.');
     location.href = '/subscribe.html';
   } catch (e) {
     const msg = e.code === 'auth/email-already-in-use'
