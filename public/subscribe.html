@@ -51,14 +51,20 @@
     document.getElementById('subscribeBtn').onclick = async () => {
       try {
         const t = await auth.currentUser.getIdToken(true);
-        const res = await fetch('/api/payfast/subscribe', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${t}` }
-        });
-        const html = await res.text();
-        const w = window.open('', '_blank');
-        if (!w) return ppAlert('Please allow popups for this site.');
-        w.document.open(); w.document.write(html); w.document.close();
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/api/payfast/subscribe';
+        form.target = '_blank';
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'token';
+        input.value = t;
+        form.appendChild(input);
+
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
       } catch (e) {
         ppAlert(e.message || e);
       }
